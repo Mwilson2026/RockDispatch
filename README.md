@@ -1,15 +1,30 @@
 # RockDispatch
 
-Front-end dispatch UI (`index.html`). Scale desk data can stay in the browser only, or sync to **Supabase** when you add your project keys.
+Vite + vanilla JS single-page app. Scale desk data uses **localStorage** offline, or syncs to **Supabase** when environment variables are set.
 
-## Supabase setup
+## Local development
 
-1. Create a free project at [supabase.com](https://supabase.com) (same idea as creating a GitHub repo: new organization/project, pick a database password, wait for provisioning).
-2. In the dashboard go to **Project Settings → API** and copy **Project URL** and the **anon public** key.
-3. Paste them into `supabase-config.js` as `window.SUPABASE_URL` and `window.SUPABASE_ANON_KEY` (see `supabase-config.example.js`).
-4. Open **SQL Editor → New query**, paste the contents of `supabase/migrations/20260423180000_desk_tables.sql`, and **Run** to create `scale_tickets` and `daily_orders`.
-5. Reload the app. With keys set, the Scale desk loads and saves tickets/orders to Supabase (and still mirrors to `localStorage` as a cache).
+```bash
+npm install
+cp .env.example .env.local
+# Edit .env.local — use publishable/anon key only (never sb_secret_)
+npm run dev
+```
 
-**CLI (optional):** with Node.js you can run `npx supabase login`, `npx supabase link --project-ref <ref>`, and `npx supabase db push` to apply migrations from this folder instead of pasting SQL.
+Open the URL Vite prints (usually `http://localhost:5173`).
 
-Row Level Security policies in the migration are permissive (`using (true)`) so the anon key works from static hosting. Tighten policies before production (e.g. require authenticated users).
+## Supabase
+
+1. Create a project at [supabase.com](https://supabase.com).
+2. **Project Settings → API:** copy **Project URL** and the **publishable** or **anon** key (not the secret key).
+3. Put them in `.env.local` as `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
+4. **SQL Editor:** run `supabase/migrations/20260423180000_desk_tables.sql`.
+
+Optional: `npx supabase link` / `npx supabase db push` instead of pasting SQL.
+
+## Deploy on Vercel
+
+1. Import the GitHub repo in [Vercel](https://vercel.com).
+2. Framework preset: **Vite** (or Other — **Build Command:** `npm run build`, **Output Directory:** `dist`).
+3. **Settings → Environment Variables:** add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (same values as local).
+4. Deploy. No API keys belong in `index.html`; Vite injects them at build time.

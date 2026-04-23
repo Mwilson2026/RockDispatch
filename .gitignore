@@ -14,7 +14,13 @@ Desktop.ini
 *.log
 *.tmp
 
-# Secrets (if you move keys out of committed stubs)
+# Secrets
 .env
 .env.*
+!.env.example
 supabase-config.local.js
+supabase-config.js
+
+# Vite
+node_modules/
+dist/

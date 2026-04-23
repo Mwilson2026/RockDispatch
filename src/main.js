@@ -1,0 +1,1116 @@
+import './style.css';
+import { createClient } from '@supabase/supabase-js';
+
+const baseTemplates = [
+      {
+        id: 1,
+        name: 'Springfield Pit — 1½″ Base Rock',
+        category: 'Base',
+        amount: 12480,
+        status: 'Scheduled',
+        customer: 'Ozark Siteworks',
+        project: 'Industrial pad — west gate',
+        issueDate: '2026-04-22',
+        validThrough: '2026-05-02',
+        terms: 'Net 15',
+        description: 'High-volume base course for a commercial pad with staged dumps and moisture checks at the scale house.',
+        specs: ['Pit: Springfield north cell', 'Target moisture band noted on ticket', 'Night pour backup window', 'DOT route pre-cleared'],
+        lineItems: [
+          { description: '1½″ base — delivered', qty: 480, unit: 'ton', rate: 24.5 },
+          { description: 'Freight / haul', qty: 32, unit: 'load', rate: 185 },
+          { description: 'Fuel surcharge', qty: 1, unit: 'lot', rate: 620 }
+        ]
+      },
+      {
+        id: 2,
+        name: 'Tri-State — 4000 PSI pour support',
+        category: 'Concrete',
+        amount: 9840,
+        status: 'In transit',
+        customer: 'Tri-State Builders',
+        project: 'Warehouse slab pour',
+        issueDate: '2026-04-20',
+        validThrough: '2026-04-28',
+        terms: 'Net 10',
+        description: 'Aggregate backfill and stone support around a large pour with tight slump windows.',
+        specs: ['Backup pit identified', 'Washout pit on standby', 'Dispatch holds until pump onsite'],
+        lineItems: [
+          { description: '3/4″ clean stone', qty: 220, unit: 'ton', rate: 26 },
+          { description: 'Pea gravel shoulder', qty: 45, unit: 'ton', rate: 31 },
+          { description: 'Short-load premium', qty: 4, unit: 'trip', rate: 95 }
+        ]
+      },
+      {
+        id: 3,
+        name: 'Hilltop — Loader &amp; haul support',
+        category: 'Equipment',
+        amount: 7180,
+        status: 'Pending',
+        customer: 'Hilltop Development',
+        project: 'Site prep — east bench',
+        issueDate: '2026-04-18',
+        validThrough: '2026-04-27',
+        terms: 'Due on receipt',
+        description: 'Hourly support for moving stripped spoil and feeding trucks at the face.',
+        specs: ['Face distance tracked hourly', 'Idle policy on file', 'Night shift optional'],
+        lineItems: [
+          { description: 'Loader w/ operator', qty: 14, unit: 'hr', rate: 175 },
+          { description: 'Articulated haul off-site', qty: 22, unit: 'load', rate: 135 },
+          { description: 'Mobilization', qty: 1, unit: 'lot', rate: 890 }
+        ]
+      },
+      {
+        id: 4,
+        name: 'North Ridge — 2″ clean + rip rap',
+        category: 'Rip rap',
+        amount: 15240,
+        status: 'Approved',
+        customer: 'North Ridge Contractors',
+        project: 'Channel stabilization',
+        issueDate: '2026-04-15',
+        validThrough: '2026-05-01',
+        terms: 'Net 30',
+        description: 'Heavy stone for erosion control with mixed lift heights and traffic control at the laydown.',
+        specs: ['QC photos each lift', 'Geo fabric by others', 'Flaggers booked'],
+        lineItems: [
+          { description: 'Class II rip rap', qty: 420, unit: 'ton', rate: 38 },
+          { description: '2″ clean bedding', qty: 180, unit: 'ton', rate: 29 },
+          { description: 'Lowboy / oversize permit', qty: 1, unit: 'lot', rate: 1200 }
+        ]
+      },
+      {
+        id: 5,
+        name: 'Prairie — Mass excavation export',
+        category: 'Excavation',
+        amount: 22880,
+        status: 'Draft',
+        customer: 'Prairie Commercial',
+        project: 'Cut/fill balance — phase 2',
+        issueDate: '2026-04-21',
+        validThrough: '2026-05-08',
+        terms: 'Progress billing',
+        description: 'Export / import balance with pit destinations pre-auth’d and daily ton caps.',
+        specs: ['Scale tickets matched to haul slips', 'Moisture variance tolerance set', 'Alternate pit if queue > 45 min'],
+        lineItems: [
+          { description: 'Off-haul to permitted pit', qty: 950, unit: 'ton', rate: 9.25 },
+          { description: 'Import borrow — structural fill', qty: 620, unit: 'ton', rate: 11.5 },
+          { description: 'Track hoe spotter time', qty: 30, unit: 'hr', rate: 95 }
+        ]
+      },
+      {
+        id: 6,
+        name: 'Local — Same-day surge loads',
+        category: 'Service',
+        amount: 2860,
+        status: 'Draft',
+        customer: 'Local Property Group',
+        project: 'Parking lot patch',
+        issueDate: '2026-04-22',
+        validThrough: '2026-04-24',
+        terms: 'Due on receipt',
+        description: 'Small ticket with truck minimums—built for quick dispatcher turnaround.',
+        specs: ['Single pit unless queue spikes', 'Standby rate after 2 hours'],
+        lineItems: [
+          { description: 'Truck minimum / dispatch', qty: 1, unit: 'lot', rate: 350 },
+          { description: '3/4″ minus patch stone', qty: 42, unit: 'ton', rate: 28 },
+          { description: 'After-hours premium', qty: 3, unit: 'hr', rate: 95 }
+        ]
+      }
+    ];
+
+    const stories = [
+      {
+        title: 'Keep the board honest',
+        text: 'Match scale tons to slip counts early. When rip rap or export jobs drift, it is almost always tickets entered late—not trucks running light.'
+      },
+      {
+        title: 'Window beats price on busy pits',
+        text: 'Customers remember reliable dispatch windows more than a dollar off per ton. Publish the load window like you mean it.'
+      }
+    ];
+
+    const STORAGE_SCALE = 'rockDispatch_scaleTickets_v1';
+    const STORAGE_ORDERS = 'rockDispatch_dailyOrders_v1';
+
+    const state = {
+      templates: structuredClone(baseTemplates),
+      filters: ['All', 'Base', 'Concrete', 'Equipment', 'Rip rap', 'Excavation', 'Service'],
+      feedTab: 'All loads',
+      feedTabs: ['All loads', 'Drafts', 'Pinned'],
+      activeFilter: 'All',
+      searchQuery: '',
+      saved: new Set(),
+      builderLines: [],
+      currentView: 'homeView',
+      currentDetailId: null,
+      authMode: 'login',
+      user: null,
+      issuedQuotes: [],
+      scaleTickets: [],
+      dailyOrders: [],
+      deskDate: '',
+      calendarView: { y: new Date().getFullYear(), m: new Date().getMonth() }
+    };
+
+    const el = (id) => document.getElementById(id);
+
+    let supabaseClient = null;
+
+function initSupabase() {
+  const url = (import.meta.env.VITE_SUPABASE_URL || '').trim();
+  const key = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
+  if (!url || !key) return false;
+  supabaseClient = createClient(url, key);
+  return true;
+}
+
+    function mapScaleFromDb(row) {
+      return {
+        id: row.id,
+        date: row.ticket_date,
+        truck: row.truck,
+        ticket: row.ticket,
+        netTons: Number(row.net_tons),
+        material: row.material,
+        time: row.time_text,
+        notes: row.notes || ''
+      };
+    }
+
+    function mapOrderFromDb(row) {
+      return {
+        id: row.id,
+        date: row.order_date,
+        customer: row.customer,
+        job: row.job,
+        material: row.material,
+        tons: Number(row.tons),
+        loads: Number(row.loads) || 0,
+        status: row.status,
+        notes: row.notes || ''
+      };
+    }
+
+    async function pullDeskFromSupabase() {
+      const [stRes, ordRes] = await Promise.all([
+        supabaseClient.from('scale_tickets').select('*').order('ticket_date', { ascending: false }),
+        supabaseClient.from('daily_orders').select('*').order('order_date', { ascending: false })
+      ]);
+      if (stRes.error) throw stRes.error;
+      if (ordRes.error) throw ordRes.error;
+      state.scaleTickets = (stRes.data || []).map(mapScaleFromDb);
+      state.dailyOrders = (ordRes.data || []).map(mapOrderFromDb);
+    }
+
+    async function sbUpsertScale(t) {
+      if (!supabaseClient) return;
+      const row = {
+        id: t.id,
+        ticket_date: t.date,
+        truck: t.truck,
+        ticket: t.ticket || '',
+        net_tons: Number(t.netTons),
+        material: t.material,
+        time_text: String(t.time),
+        notes: t.notes || ''
+      };
+      const { error } = await supabaseClient.from('scale_tickets').upsert(row);
+      if (error) console.error(error);
+    }
+
+    async function sbDeleteScale(id) {
+      if (!supabaseClient) return;
+      const { error } = await supabaseClient.from('scale_tickets').delete().eq('id', id);
+      if (error) console.error(error);
+    }
+
+    async function sbUpsertOrder(o) {
+      if (!supabaseClient) return;
+      const row = {
+        id: o.id,
+        order_date: o.date,
+        customer: o.customer,
+        job: o.job,
+        material: o.material,
+        tons: Number(o.tons),
+        loads: parseInt(String(o.loads), 10) || 0,
+        status: o.status,
+        notes: o.notes || ''
+      };
+      const { error } = await supabaseClient.from('daily_orders').upsert(row);
+      if (error) console.error(error);
+    }
+
+    async function sbDeleteOrder(id) {
+      if (!supabaseClient) return;
+      const { error } = await supabaseClient.from('daily_orders').delete().eq('id', id);
+      if (error) console.error(error);
+    }
+
+    function isoFromDate(d) {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+
+    function parseISODateLocal(s) {
+      const [y, mo, d] = s.split('-').map(Number);
+      return new Date(y, mo - 1, d);
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function loadDeskStorage() {
+      try {
+        const s = localStorage.getItem(STORAGE_SCALE);
+        const o = localStorage.getItem(STORAGE_ORDERS);
+        if (s) state.scaleTickets = JSON.parse(s);
+        if (o) state.dailyOrders = JSON.parse(o);
+      } catch (e) {}
+    }
+
+    function persistDesk() {
+      try {
+        localStorage.setItem(STORAGE_SCALE, JSON.stringify(state.scaleTickets));
+        localStorage.setItem(STORAGE_ORDERS, JSON.stringify(state.dailyOrders));
+      } catch (e) {}
+    }
+
+    function initDeskDate() {
+      const t = new Date();
+      state.deskDate = isoFromDate(t);
+      state.calendarView = { y: t.getFullYear(), m: t.getMonth() };
+    }
+
+    function seedDeskIfEmpty() {
+      if (supabaseClient) return;
+      if (state.scaleTickets.length || state.dailyOrders.length) return;
+      const today = isoFromDate(new Date());
+      const prior = isoFromDate(new Date(Date.now() - 86400000));
+      state.scaleTickets.push(
+        { id: 'S-seed-1', date: today, truck: 'T-104', ticket: 'SC-9081', netTons: 24.6, material: '3/4 clean', time: '06:42', notes: '' },
+        { id: 'S-seed-2', date: today, truck: 'T-212', ticket: 'SC-9082', netTons: 25.1, material: '1-1/2 base', time: '07:05', notes: 'Moisture OK' }
+      );
+      state.dailyOrders.push(
+        { id: 'O-seed-1', date: today, customer: 'Summit Civil', job: 'County shoulder', material: '3/4 clean', tons: 260, loads: 11, status: 'Scheduled', notes: 'PM pour' },
+        { id: 'O-seed-2', date: prior, customer: 'Riverstone Paving', job: 'Trail pad', material: 'Sand', tons: 120, loads: 5, status: 'Delivered', notes: '' }
+      );
+      persistDesk();
+    }
+
+    function dayHasData(iso) {
+      const hasS = state.scaleTickets.some((t) => t.date === iso);
+      const hasO = state.dailyOrders.some((o) => o.date === iso);
+      return hasS || hasO;
+    }
+
+    function setDeskDate(iso) {
+      if (!iso) return;
+      state.deskDate = iso;
+      const d = parseISODateLocal(iso);
+      state.calendarView = { y: d.getFullYear(), m: d.getMonth() };
+      const picker = el('deskDatePicker');
+      if (picker) picker.value = iso;
+      renderDesk();
+    }
+
+    function deskGoToToday() {
+      setDeskDate(isoFromDate(new Date()));
+    }
+
+    function deskMonthNav(delta) {
+      let y = state.calendarView.y;
+      let m = state.calendarView.m + delta;
+      if (m < 0) {
+        m = 11;
+        y -= 1;
+      }
+      if (m > 11) {
+        m = 0;
+        y += 1;
+      }
+      state.calendarView = { y, m };
+      renderMiniCalendar();
+    }
+
+    function clearScaleForm() {
+      el('scaleTruck').value = '';
+      el('scaleTicket').value = '';
+      el('scaleTime').value = '';
+      el('scaleNet').value = '';
+      el('scaleMaterial').value = '';
+      el('scaleNotes').value = '';
+    }
+
+    function addScaleTicket() {
+      const truck = el('scaleTruck').value.trim();
+      const net = parseFloat(el('scaleNet').value);
+      if (!truck || Number.isNaN(net)) {
+        showToast('Enter truck # and net tons.');
+        return;
+      }
+      const newTicket = {
+        id: `S-${Date.now()}`,
+        date: state.deskDate,
+        truck,
+        ticket: el('scaleTicket').value.trim(),
+        netTons: net,
+        material: el('scaleMaterial').value.trim() || '—',
+        time: el('scaleTime').value || '—',
+        notes: el('scaleNotes').value.trim()
+      };
+      state.scaleTickets.unshift(newTicket);
+      persistDesk();
+      void sbUpsertScale(newTicket);
+      clearScaleForm();
+      renderDesk();
+      showToast('Scale ticket logged.');
+    }
+
+    function removeScaleTicket(id) {
+      state.scaleTickets = state.scaleTickets.filter((t) => t.id !== id);
+      persistDesk();
+      renderDesk();
+      void sbDeleteScale(id);
+    }
+
+    function addDailyOrder() {
+      const customer = el('orderCustomer').value.trim();
+      const tons = parseFloat(el('orderTons').value);
+      if (!customer || Number.isNaN(tons)) {
+        showToast('Enter customer and tons ordered.');
+        return;
+      }
+      const newOrder = {
+        id: `O-${Date.now()}`,
+        date: state.deskDate,
+        customer,
+        job: el('orderJob').value.trim() || '—',
+        material: el('orderMaterial').value.trim() || '—',
+        tons,
+        loads: parseInt(el('orderLoads').value, 10) || 0,
+        status: el('orderStatus').value,
+        notes: el('orderNotes').value.trim()
+      };
+      state.dailyOrders.unshift(newOrder);
+      persistDesk();
+      void sbUpsertOrder(newOrder);
+      el('orderCustomer').value = '';
+      el('orderJob').value = '';
+      el('orderMaterial').value = '';
+      el('orderTons').value = '';
+      el('orderLoads').value = '';
+      el('orderStatus').value = 'Scheduled';
+      el('orderNotes').value = '';
+      renderDesk();
+      showToast('Order added for this date.');
+    }
+
+    function removeDailyOrder(id) {
+      state.dailyOrders = state.dailyOrders.filter((o) => o.id !== id);
+      persistDesk();
+      renderDesk();
+      void sbDeleteOrder(id);
+    }
+
+    function renderScaleTable() {
+      const body = el('scaleTableBody');
+      if (!body) return;
+      body.innerHTML = '';
+      const rows = state.scaleTickets.filter((t) => t.date === state.deskDate);
+      if (!rows.length) {
+        body.innerHTML = '<div class="empty-state" style="border:none;margin:0;border-radius:0;">No scale tickets for this date.</div>';
+        return;
+      }
+      rows.forEach((t) => {
+        const row = document.createElement('div');
+        row.className = 'scale-table-row';
+        const note = t.notes ? ` <span style="color:var(--muted-2);">(${escapeHtml(t.notes)})</span>` : '';
+        const ticket = t.ticket ? ` <span style="color:var(--muted-2);">#${escapeHtml(t.ticket)}</span>` : '';
+        row.innerHTML = `
+          <div>${escapeHtml(t.truck)}${ticket}${note}</div>
+          <div>${Number(t.netTons).toFixed(2)}</div>
+          <div>${escapeHtml(t.material)}</div>
+          <div>${escapeHtml(String(t.time))}</div>
+          <button type="button" class="ghost-btn" style="padding:8px 12px;font-size:12px;">Remove</button>
+        `;
+        row.querySelector('button').onclick = () => removeScaleTicket(t.id);
+        body.appendChild(row);
+      });
+    }
+
+    function renderOrderTable() {
+      const body = el('orderTableBody');
+      if (!body) return;
+      body.innerHTML = '';
+      const rows = state.dailyOrders.filter((o) => o.date === state.deskDate);
+      if (!rows.length) {
+        body.innerHTML = '<div class="empty-state" style="border:none;margin:0;border-radius:0;">No orders scheduled for this date.</div>';
+        return;
+      }
+      rows.forEach((o) => {
+        const row = document.createElement('div');
+        row.className = 'order-row-grid';
+        const noteHtml = o.notes
+          ? `<div style="color:var(--muted-2);font-size:11px;margin-top:4px;">${escapeHtml(o.notes)}</div>`
+          : '';
+        const loads = o.loads ? `<span style="color:var(--muted-2);"> · ${o.loads} loads</span>` : '';
+        row.innerHTML = `
+          <div>${escapeHtml(o.customer)}${noteHtml}</div>
+          <div>${escapeHtml(o.job)}</div>
+          <div>${escapeHtml(o.material)}${loads}</div>
+          <div>${Number(o.tons).toFixed(1)}</div>
+          <div><span class="tag">${escapeHtml(o.status)}</span></div>
+          <button type="button" class="ghost-btn" style="padding:8px 12px;font-size:12px;">Remove</button>
+        `;
+        row.querySelector('button').onclick = () => removeDailyOrder(o.id);
+        body.appendChild(row);
+      });
+    }
+
+    function renderMiniCalendar() {
+      const host = el('miniCalendarHost');
+      if (!host) return;
+
+      const { y, m } = state.calendarView;
+      const first = new Date(y, m, 1);
+      const startPad = first.getDay();
+      const daysInMonth = new Date(y, m + 1, 0).getDate();
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+      const todayIso = isoFromDate(new Date());
+
+      const cells = [];
+      for (let i = 0; i < startPad; i++) {
+        cells.push('<button type="button" class="cal-day" disabled aria-hidden="true">&nbsp;</button>');
+      }
+      for (let d = 1; d <= daysInMonth; d++) {
+        const iso = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const isSel = iso === state.deskDate;
+        const isToday = iso === todayIso;
+        const has = dayHasData(iso);
+        const cls = ['cal-day'];
+        if (isSel) cls.push('selected');
+        if (isToday) cls.push('today');
+        cells.push(
+          `<button type="button" class="${cls.join(' ')}" onclick="setDeskDate('${iso}')">${d}${has ? '<span class="cal-dot"></span>' : '<span class="cal-dot" style="opacity:0;"></span>'}</button>`
+        );
+      }
+
+      host.innerHTML = `
+        <div class="mini-cal-head">
+          <button type="button" class="cal-nav" onclick="deskMonthNav(-1)" aria-label="Previous month">‹</button>
+          <strong>${monthNames[m]} ${y}</strong>
+          <button type="button" class="cal-nav" onclick="deskMonthNav(1)" aria-label="Next month">›</button>
+        </div>
+        <div class="cal-weekdays"><span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span></div>
+        <div class="cal-days">${cells.join('')}</div>
+      `;
+    }
+
+    function renderDesk() {
+      const picker = el('deskDatePicker');
+      if (picker && state.deskDate) picker.value = state.deskDate;
+
+      const pretty = parseISODateLocal(state.deskDate).toLocaleDateString(undefined, {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric'
+      });
+      const ls = el('deskDateLabelScale');
+      if (ls) ls.textContent = pretty;
+      const lo = el('deskDateLabelOrders');
+      if (lo) lo.textContent = pretty;
+
+      renderScaleTable();
+      renderOrderTable();
+      renderMiniCalendar();
+    }
+
+    function formatMoney(v) { return `$${Number(v || 0).toFixed(2)}`; }
+    function formatShortMoney(v) { return `$${Number(v || 0).toFixed(0)}`; }
+
+    function daysUntil(dateString) {
+      const diff = new Date(dateString).getTime() - Date.now();
+      if (diff <= 0) return 'Window closed';
+      const days = Math.ceil(diff / 86400000);
+      return `${days} day${days === 1 ? '' : 's'} left in window`;
+    }
+
+    function switchView(viewId) {
+      document.querySelectorAll('.view').forEach((view) => view.classList.remove('active'));
+      el(viewId).classList.add('active');
+      state.currentView = viewId;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function goHome() {
+      renderAll();
+      switchView('homeView');
+    }
+
+    function openDetail(id) {
+      state.currentDetailId = id;
+      renderDetail();
+      switchView('detailView');
+    }
+
+    function openBuilder() {
+      renderBuilder();
+      switchView('builderView');
+    }
+
+    function openAdmin() {
+      renderAdmin();
+      switchView('adminView');
+    }
+
+    function showToast(message) {
+      const toast = el('toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      clearTimeout(window.toastTimer);
+      window.toastTimer = setTimeout(() => toast.classList.remove('show'), 2200);
+    }
+
+    function getTemplateTotal(template) {
+      return template.lineItems.reduce((sum, item) => sum + Number(item.qty) * Number(item.rate), 0);
+    }
+
+    function renderHero() {
+      const featured = state.templates[0];
+      el('heroBadge').textContent = featured.status;
+      el('heroTitle').textContent = featured.name;
+      el('heroText').textContent = featured.description;
+
+      const promoStack = el('promoStack');
+      promoStack.innerHTML = '';
+      state.templates.slice(1, 3).forEach((template) => {
+        const card = document.createElement('article');
+        card.className = 'promo-card';
+        card.innerHTML = `
+          <div>
+            <small>${template.category}</small>
+            <h3>${template.name}</h3>
+            <p>${template.description}</p>
+          </div>
+          <div class="promo-footer">
+            <div>
+              <div style="color: var(--muted); font-size: 13px;">${template.customer}</div>
+              <div style="font-size: 20px; font-weight: 800; margin-top: 5px;">${formatShortMoney(getTemplateTotal(template))}</div>
+            </div>
+            <button type="button" class="mini-btn" onclick="openDetail(${template.id})">View</button>
+          </div>
+        `;
+        promoStack.appendChild(card);
+      });
+    }
+
+    function renderFeedTabs() {
+      const container = el('feedTabs');
+      container.innerHTML = '';
+      state.feedTabs.forEach((tab) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `tab-btn ${state.feedTab === tab ? 'active' : ''}`;
+        btn.textContent = tab;
+        btn.onclick = () => {
+          state.feedTab = tab;
+          renderFeedTabs();
+          renderTemplates();
+        };
+        container.appendChild(btn);
+      });
+    }
+
+    function renderFilters() {
+      const filtersEl = el('filters');
+      filtersEl.innerHTML = '';
+      state.filters.forEach((filter) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `pill ${state.activeFilter === filter ? 'active' : ''}`;
+        btn.textContent = filter;
+        btn.onclick = () => {
+          state.activeFilter = filter;
+          renderFilters();
+          renderTemplates();
+        };
+        filtersEl.appendChild(btn);
+      });
+    }
+
+    function getFilteredTemplates() {
+      return state.templates.filter((template) => {
+        const q = state.searchQuery.trim().toLowerCase();
+        const blob = [template.name, template.category, template.status, template.customer, template.project, template.description].join(' ').toLowerCase();
+        const matchesQuery = !q || blob.includes(q);
+        const matchesFilter = state.activeFilter === 'All' || template.category.toLowerCase() === state.activeFilter.toLowerCase();
+        const matchesTab =
+          state.feedTab === 'All loads' ? true :
+          state.feedTab === 'Drafts' ? template.status === 'Draft' :
+          state.saved.has(template.id);
+        return matchesQuery && matchesFilter && matchesTab;
+      });
+    }
+
+    function renderTemplates() {
+      const gridEl = el('templateGrid');
+      gridEl.innerHTML = '';
+      const items = getFilteredTemplates();
+
+      if (!items.length) {
+        gridEl.innerHTML = `<div class="empty-state" style="grid-column: 1/-1;">No load plans matched your filters.</div>`;
+        return;
+      }
+
+      items.forEach((template) => {
+        const total = getTemplateTotal(template);
+        const card = document.createElement('article');
+        card.className = 'card';
+        card.innerHTML = `
+          <div class="quote-card-top">
+            <div>
+              <span class="tag">${template.status}</span>
+              <h3>${template.name}</h3>
+              <p>${template.description}</p>
+            </div>
+          </div>
+          <div class="quote-meta">
+            <div>${template.category} · ${template.customer}</div>
+            <div>${template.project}</div>
+          </div>
+          <div class="quote-price">${formatMoney(total)}</div>
+          <div class="action-row" style="margin-top: 18px;">
+            <button type="button" class="mini-btn" onclick="openDetail(${template.id})">Open</button>
+            <button type="button" class="ghost-btn" onclick="openBuilder()">Dispatch sheet</button>
+          </div>
+        `;
+        gridEl.appendChild(card);
+      });
+    }
+
+    function renderStories() {
+      const grid = el('storyGrid');
+      grid.innerHTML = '';
+      stories.forEach((story) => {
+        const article = document.createElement('article');
+        article.className = 'story-card';
+        article.innerHTML = `
+          <div class="overlay"></div>
+          <div class="story-copy">
+            <span class="eyebrow">Ops note</span>
+            <h3>${story.title}</h3>
+            <p>${story.text}</p>
+          </div>
+        `;
+        grid.appendChild(article);
+      });
+    }
+
+    function getTemplateById(id) {
+      return state.templates.find((t) => t.id === id);
+    }
+
+    function renderDetail() {
+      const template = getTemplateById(state.currentDetailId);
+      if (!template) {
+        showToast('Load plan not found.');
+        goHome();
+        return;
+      }
+
+      el('detailHeader').textContent = template.name;
+      el('sheetTitle').textContent = template.name;
+      el('detailBadge').textContent = template.status;
+      el('detailIssueDate').textContent = `Opened ${template.issueDate}`;
+      el('sheetCustomer').textContent = template.customer;
+      el('sheetProject').textContent = template.project;
+      el('sheetExpiry').textContent = `${template.validThrough} (${daysUntil(template.validThrough)})`;
+      el('sheetTerms').textContent = template.terms;
+
+      const rows = el('detailLineRows');
+      rows.innerHTML = '';
+      template.lineItems.forEach((item) => {
+        const row = document.createElement('div');
+        row.className = 'line-row';
+        const lineTotal = Number(item.qty) * Number(item.rate);
+        row.innerHTML = `
+          <div>${item.description}</div>
+          <div>${item.qty}</div>
+          <div>${item.unit}</div>
+          <div>${formatMoney(item.rate)}</div>
+          <div>${formatMoney(lineTotal)}</div>
+        `;
+        rows.appendChild(row);
+      });
+
+      el('detailStatus').textContent = template.status;
+      el('detailName').textContent = template.name;
+      el('detailPrice').textContent = formatMoney(getTemplateTotal(template));
+      el('detailCountdown').innerHTML = `<span class="countdown-chip">${daysUntil(template.validThrough)}</span>`;
+      el('detailDescription').textContent = template.description;
+
+      const specs = el('detailSpecs');
+      specs.innerHTML = '';
+      template.specs.forEach((line) => {
+        const div = document.createElement('div');
+        div.textContent = `• ${line}`;
+        specs.appendChild(div);
+      });
+
+      const saveBtn = el('detailSaveBtn');
+      saveBtn.textContent = state.saved.has(template.id) ? 'Unpin' : 'Pin';
+    }
+
+    function toggleSaveCurrentTemplate() {
+      const template = getTemplateById(state.currentDetailId);
+      if (!template) return;
+      if (state.saved.has(template.id)) state.saved.delete(template.id);
+      else state.saved.add(template.id);
+      showToast(state.saved.has(template.id) ? 'Pinned to your board.' : 'Unpinned.');
+      renderDetail();
+      renderTemplates();
+      updateBuilderBadge();
+    }
+
+    function useCurrentTemplate() {
+      const template = getTemplateById(state.currentDetailId);
+      if (!template) return;
+      el('quoteCustomer').value = template.customer;
+      el('quoteCompany').value = '';
+      el('quoteProject').value = template.project;
+      el('quoteLocation').value = '';
+      el('quoteNumber').value = `RD-${String(template.id).padStart(4, '0')}`;
+      el('quoteDate').value = template.issueDate;
+      el('quoteExpiry').value = template.validThrough;
+      el('quoteTerms').value = template.terms;
+      el('quoteNotes').value = '';
+      el('quoteScope').value = template.description;
+      state.builderLines = template.lineItems.map((item) => ({
+        description: item.description,
+        qty: item.qty,
+        unit: item.unit,
+        rate: item.rate
+      }));
+      if (!state.builderLines.length) addLineItem();
+      openBuilder();
+      showToast('Template copied into dispatch builder.');
+    }
+
+    function computeBuilderTotals() {
+      let subtotal = 0;
+      state.builderLines.forEach((line) => {
+        subtotal += Number(line.qty || 0) * Number(line.rate || 0);
+      });
+      const tax = subtotal * 0.065;
+      const fees = subtotal * 0.0125;
+      const total = subtotal + tax + fees;
+      el('summarySubtotal').textContent = formatMoney(subtotal);
+      el('summaryTax').textContent = formatMoney(tax);
+      el('summaryFees').textContent = formatMoney(fees);
+      el('summaryTotal').textContent = formatMoney(total);
+    }
+
+    function renderBuilderLines() {
+      const wrap = el('quoteLines');
+      wrap.innerHTML = '';
+      state.builderLines.forEach((line, index) => {
+        const card = document.createElement('div');
+        card.className = 'line-item-card';
+        card.innerHTML = `
+          <input data-k="description" data-i="${index}" value="${line.description}" placeholder="Description" />
+          <input data-k="qty" data-i="${index}" type="number" step="any" value="${line.qty}" placeholder="Qty" />
+          <input data-k="unit" data-i="${index}" value="${line.unit}" placeholder="Unit" />
+          <input data-k="rate" data-i="${index}" type="number" step="any" value="${line.rate}" placeholder="Rate" />
+          <button type="button" class="remove-btn" data-remove="${index}" aria-label="Remove line">✕</button>
+        `;
+        wrap.appendChild(card);
+      });
+
+      wrap.querySelectorAll('input').forEach((input) => {
+        input.addEventListener('input', (e) => {
+          const idx = Number(e.target.dataset.i);
+          const key = e.target.dataset.k;
+          state.builderLines[idx][key] = e.target.type === 'number' ? parseFloat(e.target.value) || 0 : e.target.value;
+          computeBuilderTotals();
+        });
+      });
+      wrap.querySelectorAll('[data-remove]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const idx = Number(btn.dataset.remove);
+          state.builderLines.splice(idx, 1);
+          renderBuilderLines();
+          computeBuilderTotals();
+        });
+      });
+      computeBuilderTotals();
+    }
+
+    function addLineItem() {
+      state.builderLines.push({ description: '', qty: 1, unit: 'ton', rate: 0 });
+      renderBuilderLines();
+    }
+
+    function renderBuilder() {
+      if (!state.builderLines.length) {
+        state.builderLines.push({ description: 'Delivered stone', qty: 100, unit: 'ton', rate: 24 });
+      }
+      renderBuilderLines();
+      updateBuilderBadge();
+    }
+
+    function saveQuoteDraft() {
+      showToast('Draft saved locally in this session.');
+    }
+
+    function seedQuoteDemo() {
+      el('quoteCustomer').value = 'Summit Civil';
+      el('quoteCompany').value = 'Summit Civil LLC';
+      el('quoteProject').value = 'County road shoulder';
+      el('quoteLocation').value = 'MM 142 — eastbound';
+      el('quoteNumber').value = 'RD-DEMO-01';
+      el('quoteDate').value = '2026-04-23';
+      el('quoteExpiry').value = '2026-05-05';
+      el('quoteTerms').value = 'Net 15';
+      el('quoteNotes').value = 'Flaggers on site after 3pm. Alternate pit if queue exceeds 45 minutes.';
+      el('quoteScope').value = '3/4″ clean per county spec; moisture within ±2% at scale.';
+      state.builderLines = [
+        { description: '3/4″ clean — delivered', qty: 260, unit: 'ton', rate: 26.5 },
+        { description: 'Tandem haul', qty: 18, unit: 'load', rate: 165 },
+        { description: 'Fuel surcharge pool', qty: 1, unit: 'lot', rate: 480 }
+      ];
+      renderBuilderLines();
+      showToast('Demo haul sheet filled.');
+    }
+
+    function issueQuote() {
+      const customer = el('quoteCustomer').value.trim() || 'Walk-in customer';
+      const totalText = el('summaryTotal').textContent;
+      state.issuedQuotes.unshift({
+        id: `ISS-${Date.now()}`,
+        customer,
+        total: totalText,
+        when: new Date().toISOString().slice(0, 10)
+      });
+      showToast('Dispatch issued — added to admin list.');
+      renderAdminList();
+      updateBuilderBadge();
+    }
+
+    function printQuote() {
+      window.print();
+    }
+
+    function updateBuilderBadge() {
+      const n = state.builderLines.length;
+      el('builderCount').textContent = String(n);
+    }
+
+    function createTemplate() {
+      const name = el('adminName').value.trim();
+      if (!name) {
+        showToast('Add a template name first.');
+        return;
+      }
+      const nextId = Math.max(0, ...state.templates.map((t) => t.id)) + 1;
+      const amount = parseFloat(el('adminAmount').value) || 0;
+      const template = {
+        id: nextId,
+        name,
+        category: el('adminCategory').value.trim() || 'Custom',
+        amount,
+        status: el('adminStatus').value.trim() || 'Draft',
+        customer: el('adminCustomer').value.trim() || 'Sample customer',
+        project: el('adminProject').value.trim() || 'Sample job site',
+        issueDate: new Date().toISOString().slice(0, 10),
+        validThrough: el('adminValid').value.trim() || '2026-12-31',
+        terms: el('adminTerms').value.trim() || 'Net 30',
+        description: el('adminDescription').value.trim() || 'New reusable load template.',
+        specs: ['Published from admin', 'Edit line items in the builder after pinning'],
+        lineItems: [
+          { description: 'Delivered material', qty: 200, unit: 'ton', rate: 24 },
+          { description: 'Haul', qty: 14, unit: 'load', rate: 175 }
+        ]
+      };
+      state.templates.unshift(template);
+      showToast('Template published.');
+      renderAll();
+      renderAdmin();
+    }
+
+    function fillAdminDemo() {
+      el('adminName').value = 'Midwest Pit — surge loads';
+      el('adminCategory').value = 'Sand';
+      el('adminAmount').value = '5420';
+      el('adminStatus').value = 'Scheduled';
+      el('adminCustomer').value = 'Riverstone Paving';
+      el('adminProject').value = 'Trail connector';
+      el('adminValid').value = '2026-05-12';
+      el('adminTerms').value = 'Due on receipt';
+      el('adminDescription').value = 'Quick-turn sand with truck minimums and optional night pour.';
+    }
+
+    function renderAdminList() {
+      const list = el('adminQuoteList');
+      list.innerHTML = '';
+      if (!state.issuedQuotes.length) {
+        list.innerHTML = `<div class="empty-state">No issued haul sheets yet.</div>`;
+        return;
+      }
+      state.issuedQuotes.forEach((q) => {
+        const row = document.createElement('div');
+        row.className = 'quote-row';
+        row.innerHTML = `
+          <div>
+            <div style="font-weight: 700;">${q.customer}</div>
+            <div style="color: var(--muted-2); font-size: 12px; margin-top: 4px;">${q.when}</div>
+          </div>
+          <span class="tag">${q.total}</span>
+          <span class="status-pill">Issued</span>
+        `;
+        list.appendChild(row);
+      });
+    }
+
+    function renderAdmin() {
+      el('metricTemplates').textContent = String(state.templates.length);
+      el('metricSaved').textContent = String(state.saved.size);
+      el('metricIssued').textContent = String(state.issuedQuotes.length);
+      renderAdminList();
+    }
+
+    function renderAuthTabs() {
+      const tabs = el('authTabs');
+      tabs.innerHTML = '';
+      ;['login', 'register'].forEach((mode) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `tab-btn ${state.authMode === mode ? 'active' : ''}`;
+        btn.textContent = mode === 'login' ? 'Sign in' : 'Create account';
+        btn.onclick = () => {
+          state.authMode = mode;
+          renderAuthTabs();
+          syncAuthCopy();
+        };
+        tabs.appendChild(btn);
+      });
+    }
+
+    function syncAuthCopy() {
+      const login = state.authMode === 'login';
+      el('authTitle').textContent = login ? 'Welcome back' : 'Create dispatcher access';
+      el('authText').textContent = login
+        ? 'Sign in to pin load plans and track issued haul sheets.'
+        : 'Register to save preferences across sessions when you connect a backend.';
+      el('authSubmitBtn').textContent = login ? 'Sign in' : 'Create account';
+      el('authName').style.display = login ? 'none' : 'block';
+    }
+
+    function toggleAuth(force) {
+      const modal = el('authModal');
+      if (typeof force === 'boolean') {
+        modal.classList.toggle('open', force);
+      } else {
+        modal.classList.toggle('open');
+      }
+      if (modal.classList.contains('open')) {
+        renderAuthTabs();
+        syncAuthCopy();
+      }
+    }
+
+    function submitAuth() {
+      const email = el('authEmail').value.trim();
+      if (!email) {
+        showToast('Enter an email.');
+        return;
+      }
+      if (state.authMode === 'register') {
+        const name = el('authName').value.trim() || 'Dispatcher';
+        state.user = { name, email };
+        el('authStatusBtn').textContent = name.split(' ')[0];
+      } else {
+        state.user = { name: 'Dispatcher', email };
+        el('authStatusBtn').textContent = 'Signed in';
+      }
+      toggleAuth(false);
+      showToast(state.authMode === 'register' ? 'Account ready (demo).' : 'Signed in (demo).');
+    }
+
+    function renderAll() {
+      renderHero();
+      renderFeedTabs();
+      renderFilters();
+      renderTemplates();
+      renderStories();
+      renderDesk();
+      updateBuilderBadge();
+    }
+
+    el('searchInput').addEventListener('input', (e) => {
+      state.searchQuery = e.target.value;
+      renderTemplates();
+    });
+
+    const deskPicker = el('deskDatePicker');
+    if (deskPicker) {
+      deskPicker.addEventListener('change', (e) => {
+        const v = e.target.value;
+        if (v) setDeskDate(v);
+      });
+    }
+
+    Object.assign(window, {
+      state,
+      goHome,
+      openDetail,
+      openBuilder,
+      openAdmin,
+      toggleAuth,
+      deskGoToToday,
+      addScaleTicket,
+      clearScaleForm,
+      addDailyOrder,
+      setDeskDate,
+      deskMonthNav,
+      useCurrentTemplate,
+      toggleSaveCurrentTemplate,
+      addLineItem,
+      saveQuoteDraft,
+      seedQuoteDemo,
+      issueQuote,
+      printQuote,
+      createTemplate,
+      fillAdminDemo,
+      submitAuth
+    });
+
+    (async function bootstrapDesk() {
+      initDeskDate();
+      if (initSupabase()) {
+        try {
+          await pullDeskFromSupabase();
+          persistDesk();
+        } catch (err) {
+          console.error(err);
+          showToast('Could not load Supabase — using saved browser data.');
+          loadDeskStorage();
+          seedDeskIfEmpty();
+        }
+      } else {
+        loadDeskStorage();
+        seedDeskIfEmpty();
+      }
+
+      renderAll();
+      syncAuthCopy();
+      el('authName').style.display = 'none';
+    })();
