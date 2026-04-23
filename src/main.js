@@ -247,6 +247,109 @@ function initSupabase() {
       if (error) console.error(error);
     }
 
+    function mapTemplateFromDb(row) {
+      const specs = row.specs;
+      const lineItems = row.line_items;
+      return {
+        id: row.id,
+        name: row.name,
+        category: row.category,
+        amount: Number(row.amount),
+        status: row.status,
+        customer: row.customer,
+        project: row.project,
+        issueDate: row.issue_date,
+        validThrough: row.valid_through,
+        terms: row.terms,
+        description: row.description,
+        specs: Array.isArray(specs) ? specs : [],
+        lineItems: Array.isArray(lineItems) ? lineItems : []
+      };
+    }
+
+    function mapTemplateToDb(t) {
+      return {
+        id: t.id,
+        name: t.name,
+        category: t.category,
+        amount: t.amount,
+        status: t.status,
+        customer: t.customer,
+        project: t.project,
+        issue_date: t.issueDate,
+        valid_through: t.validThrough,
+        terms: t.terms,
+        description: t.description,
+        specs: t.specs,
+        line_items: t.lineItems
+      };
+    }
+
+    function mergeTemplatesFromDb(rows) {
+      if (!rows || !rows.length) return;
+      const fromDb = new Map(rows.map((r) => [r.id, mapTemplateFromDb(r)]));
+      const merged = structuredClone(baseTemplates).map((t) => (fromDb.has(t.id) ? fromDb.get(t.id) : t));
+      for (const [id, t] of fromDb) {
+        if (!merged.some((x) => x.id === id)) merged.push(t);
+      }
+      merged.sort((a, b) => b.id - a.id);
+      state.templates = merged;
+    }
+
+    async function pullTemplatesFromSupabase() {
+      const { data, error } = await supabaseClient.from('load_templates').select('*');
+      if (error) throw error;
+      mergeTemplatesFromDb(data || []);
+    }
+
+    async function sbUpsertTemplate(t) {
+      if (!supabaseClient) return;
+      const { error } = await supabaseClient.from('load_templates').upsert(mapTemplateToDb(t));
+      if (error) console.error(error);
+    }
+
+    async function pullIssuedFromSupabase() {
+      const { data, error } = await supabaseClient
+        .from('issued_quotes')
+        .select('*')
+        .order('quote_date', { ascending: false });
+      if (error) throw error;
+      state.issuedQuotes = (data || []).map((r) => ({
+        id: r.id,
+        customer: r.customer,
+        total: r.total_display,
+        when: r.quote_date || (r.created_at ? String(r.created_at).slice(0, 10) : '')
+      }));
+    }
+
+    async function sbInsertIssuedQuote(q) {
+      if (!supabaseClient) return;
+      const { error } = await supabaseClient.from('issued_quotes').insert({
+        id: q.id,
+        customer: q.customer,
+        total_display: q.total,
+        quote_date: q.when
+      });
+      if (error) console.error(error);
+    }
+
+    async function pullPinsFromSupabase() {
+      const { data, error } = await supabaseClient.from('pinned_template_ids').select('template_id');
+      if (error) throw error;
+      state.saved = new Set((data || []).map((r) => r.template_id));
+    }
+
+    async function sbSyncPinnedTemplate(templateId, pinned) {
+      if (!supabaseClient) return;
+      if (pinned) {
+        const { error } = await supabaseClient.from('pinned_template_ids').upsert({ template_id: templateId });
+        if (error) console.error(error);
+      } else {
+        const { error } = await supabaseClient.from('pinned_template_ids').delete().eq('template_id', templateId);
+        if (error) console.error(error);
+      }
+    }
+
     function isoFromDate(d) {
       const y = d.getFullYear();
       const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -775,7 +878,9 @@ function initSupabase() {
       if (!template) return;
       if (state.saved.has(template.id)) state.saved.delete(template.id);
       else state.saved.add(template.id);
-      showToast(state.saved.has(template.id) ? 'Pinned to your board.' : 'Unpinned.');
+      const pinned = state.saved.has(template.id);
+      void sbSyncPinnedTemplate(template.id, pinned);
+      showToast(pinned ? 'Pinned to your board.' : 'Unpinned.');
       renderDetail();
       renderTemplates();
       updateBuilderBadge();
@@ -894,12 +999,14 @@ function initSupabase() {
     function issueQuote() {
       const customer = el('quoteCustomer').value.trim() || 'Walk-in customer';
       const totalText = el('summaryTotal').textContent;
-      state.issuedQuotes.unshift({
+      const issued = {
         id: `ISS-${Date.now()}`,
         customer,
         total: totalText,
         when: new Date().toISOString().slice(0, 10)
-      });
+      };
+      state.issuedQuotes.unshift(issued);
+      void sbInsertIssuedQuote(issued);
       showToast('Dispatch issued — added to admin list.');
       renderAdminList();
       updateBuilderBadge();
@@ -941,6 +1048,7 @@ function initSupabase() {
         ]
       };
       state.templates.unshift(template);
+      void sbUpsertTemplate(template);
       showToast('Template published.');
       renderAll();
       renderAdmin();
@@ -1097,7 +1205,12 @@ function initSupabase() {
       initDeskDate();
       if (initSupabase()) {
         try {
-          await pullDeskFromSupabase();
+          await Promise.all([
+            pullDeskFromSupabase(),
+            pullTemplatesFromSupabase(),
+            pullIssuedFromSupabase(),
+            pullPinsFromSupabase()
+          ]);
           persistDesk();
         } catch (err) {
           console.error(err);

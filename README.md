@@ -18,7 +18,11 @@ Open the URL Vite prints (usually `http://localhost:5173`).
 1. Create a project at [supabase.com](https://supabase.com).
 2. **Project Settings → API:** copy **Project URL** and the **publishable** or **anon** key (not the secret key).
 3. Put them in `.env.local` as `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
-4. **SQL Editor:** run `supabase/migrations/20260423180000_desk_tables.sql`.
+4. **SQL Editor:** run the migrations in order (or `npx supabase db push` if linked):
+   - `supabase/migrations/20260423180000_desk_tables.sql` — `scale_tickets`, `daily_orders`
+   - `supabase/migrations/20260424190000_dispatch_backend.sql` — `load_templates`, `issued_quotes`, `pinned_template_ids`
+
+With env vars set, the app syncs the **scale desk**, **load templates** (merged with built-in defaults), **issued dispatch rows**, and **pinned** template ids.
 
 Optional: `npx supabase link` / `npx supabase db push` instead of pasting SQL.
 
