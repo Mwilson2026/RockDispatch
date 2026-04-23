@@ -30,7 +30,7 @@
 
       <div class="nav-actions">
         <button type="button" class="icon-btn" onclick="toggleAuth()" aria-label="Account">◎</button>
-        <button type="button" class="ghost-btn menu-persist" onclick="toggleAuth()" id="authStatusBtn">Login</button>
+        <button type="button" class="ghost-btn menu-persist" onclick="onAuthNavClick()" id="authStatusBtn">Login</button>
         <button type="button" class="summary-btn" onclick="openBuilder()">Dispatch <span class="badge-count" id="builderCount">0</span></button>
       </div>
     </header>
@@ -375,7 +375,7 @@
         </div>
         <div class="auth-actions">
           <button type="button" class="primary-btn" onclick="submitAuth()" id="authSubmitBtn">Sign in</button>
-          <button type="button" class="ghost-btn" onclick="toggleAuth(false)">Cancel</button>
+          <button type="button" class="ghost-btn" onclick="toggleAuth(false)" id="authCancelBtn">Cancel</button>
         </div>
       </div>
     </div>

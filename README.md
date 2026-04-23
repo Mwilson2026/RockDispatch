@@ -24,6 +24,14 @@ Open the URL Vite prints (usually `http://localhost:5173`).
 
 With env vars set, the app syncs the **scale desk**, **load templates** (merged with built-in defaults), **issued dispatch rows**, and **pinned** template ids.
 
+### Authentication (required for cloud sync)
+
+1. Run migration `supabase/migrations/20260425110000_auth_rls.sql` after the earlier migrations. It adds `user_id` to every table, **clears old rows** that had no owner, and replaces open policies with **row-level security** so each user only sees their own data.
+2. In Supabase **Authentication → Providers**, keep **Email** enabled. For development you can turn off **Confirm email** under **Authentication → Providers → Email** so sign-up can sign in immediately.
+3. Sign up or sign in from the app modal. The **Login** button shows your email prefix when signed in; click it to **sign out**. Until you sign in, the modal stays required (no dismiss) when using Supabase.
+
+Without `VITE_SUPABASE_*` env vars, the app stays in **offline** mode (localStorage only, demo login allowed).
+
 Optional: `npx supabase link` / `npx supabase db push` instead of pasting SQL.
 
 ## Deploy on Vercel

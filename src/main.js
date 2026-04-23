@@ -145,6 +145,7 @@ const baseTemplates = [
       currentDetailId: null,
       authMode: 'login',
       user: null,
+      session: null,
       issuedQuotes: [],
       scaleTickets: [],
       dailyOrders: [],
@@ -160,8 +161,79 @@ function initSupabase() {
   const url = (import.meta.env.VITE_SUPABASE_URL || '').trim();
   const key = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
   if (!url || !key) return false;
-  supabaseClient = createClient(url, key);
+  supabaseClient = createClient(url, key, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      storage: typeof window !== 'undefined' ? window.localStorage : undefined
+    }
+  });
   return true;
+}
+
+function setAuthModalDismissable(dismissable) {
+  const closeBtn = document.querySelector('#authModal .auth-header .icon-btn');
+  const cancelBtn = el('authCancelBtn');
+  if (closeBtn) closeBtn.style.display = dismissable ? '' : 'none';
+  if (cancelBtn) cancelBtn.style.display = dismissable ? '' : 'none';
+}
+
+function updateAuthNav() {
+  const btn = el('authStatusBtn');
+  if (!btn) return;
+  if (!supabaseClient) {
+    btn.textContent = 'Offline';
+    return;
+  }
+  if (state.session?.user) {
+    const email = state.session.user.email || '';
+    btn.textContent = email ? email.split('@')[0] : 'Signed in';
+  } else {
+    btn.textContent = 'Login';
+  }
+}
+
+function resetStateAfterSignOut() {
+  state.templates = structuredClone(baseTemplates);
+  state.saved = new Set();
+  state.issuedQuotes = [];
+  state.scaleTickets = [];
+  state.dailyOrders = [];
+  state.builderLines = [];
+  state.user = null;
+  state.session = null;
+  switchView('homeView');
+}
+
+async function loadCloudData() {
+  await Promise.all([
+    pullDeskFromSupabase(),
+    pullTemplatesFromSupabase(),
+    pullIssuedFromSupabase(),
+    pullPinsFromSupabase()
+  ]);
+}
+
+async function signOutUser() {
+  if (!supabaseClient) return;
+  const { error } = await supabaseClient.auth.signOut();
+  if (error) {
+    showToast(error.message);
+    return;
+  }
+}
+
+function onAuthNavClick() {
+  if (!supabaseClient) {
+    toggleAuth(true);
+    return;
+  }
+  if (state.session?.user) {
+    void signOutUser();
+  } else {
+    toggleAuth(true);
+  }
 }
 
     function mapScaleFromDb(row) {
@@ -1124,33 +1196,70 @@ function initSupabase() {
 
     function toggleAuth(force) {
       const modal = el('authModal');
+      if (!modal) return;
+      const offline = !supabaseClient;
+      const mustAuth = supabaseClient && !state.session;
+
+      if (force === false && mustAuth) {
+        showToast('Sign in to continue.');
+        return;
+      }
+
       if (typeof force === 'boolean') {
         modal.classList.toggle('open', force);
       } else {
+        const willClose = modal.classList.contains('open');
+        if (willClose && mustAuth) {
+          showToast('Sign in to continue.');
+          return;
+        }
         modal.classList.toggle('open');
       }
+
       if (modal.classList.contains('open')) {
         renderAuthTabs();
         syncAuthCopy();
+        const canDismiss = offline || !!state.session;
+        setAuthModalDismissable(canDismiss);
       }
     }
 
-    function submitAuth() {
+    async function submitAuth() {
       const email = el('authEmail').value.trim();
-      if (!email) {
-        showToast('Enter an email.');
+      const password = el('authPassword').value;
+      if (!email || !password) {
+        showToast('Enter email and password.');
         return;
       }
-      if (state.authMode === 'register') {
-        const name = el('authName').value.trim() || 'Dispatcher';
-        state.user = { name, email };
-        el('authStatusBtn').textContent = name.split(' ')[0];
-      } else {
-        state.user = { name: 'Dispatcher', email };
-        el('authStatusBtn').textContent = 'Signed in';
+      if (!supabaseClient) {
+        showToast('Cloud login needs Supabase env vars (use npm run dev with .env.local).');
+        return;
       }
-      toggleAuth(false);
-      showToast(state.authMode === 'register' ? 'Account ready (demo).' : 'Signed in (demo).');
+
+      try {
+        if (state.authMode === 'register') {
+          const name = el('authName').value.trim();
+          const { data, error } = await supabaseClient.auth.signUp({
+            email,
+            password,
+            options: name ? { data: { full_name: name } } : undefined
+          });
+          if (error) throw error;
+          if (data.session) {
+            toggleAuth(false);
+            showToast('Account created.');
+          } else {
+            showToast('Check your email to confirm, then sign in.');
+          }
+        } else {
+          const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+          if (error) throw error;
+          toggleAuth(false);
+          showToast('Signed in.');
+        }
+      } catch (err) {
+        showToast(err.message || String(err));
+      }
     }
 
     function renderAll() {
@@ -1183,6 +1292,7 @@ function initSupabase() {
       openBuilder,
       openAdmin,
       toggleAuth,
+      onAuthNavClick,
       deskGoToToday,
       addScaleTicket,
       clearScaleForm,
@@ -1203,14 +1313,56 @@ function initSupabase() {
 
     (async function bootstrapDesk() {
       initDeskDate();
-      if (initSupabase()) {
+
+      if (!initSupabase()) {
+        loadDeskStorage();
+        seedDeskIfEmpty();
+        updateAuthNav();
+        renderAll();
+        syncAuthCopy();
+        el('authName').style.display = 'none';
+        return;
+      }
+
+      supabaseClient.auth.onAuthStateChange(async (event, session) => {
+        if (event === 'INITIAL_SESSION') return;
+
+        if (event === 'SIGNED_OUT') {
+          resetStateAfterSignOut();
+          loadDeskStorage();
+          seedDeskIfEmpty();
+          updateAuthNav();
+          toggleAuth(true);
+          setAuthModalDismissable(false);
+          renderAll();
+          return;
+        }
+
+        if (event === 'SIGNED_IN' && session?.user) {
+          state.session = session;
+          state.user = session.user;
+          updateAuthNav();
+          try {
+            await loadCloudData();
+            persistDesk();
+          } catch (err) {
+            console.error(err);
+            showToast('Could not sync after sign-in.');
+          }
+          renderAll();
+        }
+      });
+
+      const {
+        data: { session }
+      } = await supabaseClient.auth.getSession();
+
+      if (session?.user) {
+        state.session = session;
+        state.user = session.user;
+        updateAuthNav();
         try {
-          await Promise.all([
-            pullDeskFromSupabase(),
-            pullTemplatesFromSupabase(),
-            pullIssuedFromSupabase(),
-            pullPinsFromSupabase()
-          ]);
+          await loadCloudData();
           persistDesk();
         } catch (err) {
           console.error(err);
@@ -1219,8 +1371,12 @@ function initSupabase() {
           seedDeskIfEmpty();
         }
       } else {
+        resetStateAfterSignOut();
         loadDeskStorage();
         seedDeskIfEmpty();
+        toggleAuth(true);
+        setAuthModalDismissable(false);
+        updateAuthNav();
       }
 
       renderAll();
