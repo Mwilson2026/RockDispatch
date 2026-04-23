@@ -13,3 +13,8 @@ Desktop.ini
 # Logs & temp
 *.log
 *.tmp
+
+# Secrets (if you move keys out of committed stubs)
+.env
+.env.*
+supabase-config.local.js

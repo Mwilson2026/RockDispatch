@@ -1,0 +1,2 @@
+-- Optional seed data for `supabase db reset` / local dev.
+-- Leave empty; the web app seeds demo rows in localStorage when offline.

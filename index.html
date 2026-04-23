@@ -1285,6 +1285,12 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script>
+    window.SUPABASE_URL = window.SUPABASE_URL || '';
+    window.SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || '';
+  </script>
+  <script src="supabase-config.js"></script>
   <script>
     const baseTemplates = [
       {
@@ -1439,6 +1445,104 @@
 
     const el = (id) => document.getElementById(id);
 
+    let supabaseClient = null;
+
+    function initSupabase() {
+      const url = (window.SUPABASE_URL || '').trim();
+      const key = (window.SUPABASE_ANON_KEY || '').trim();
+      if (!url || !key) return false;
+      const createClient = window.supabase && window.supabase.createClient;
+      if (typeof createClient !== 'function') {
+        console.warn('Supabase client library not loaded.');
+        return false;
+      }
+      supabaseClient = createClient(url, key);
+      return true;
+    }
+
+    function mapScaleFromDb(row) {
+      return {
+        id: row.id,
+        date: row.ticket_date,
+        truck: row.truck,
+        ticket: row.ticket,
+        netTons: Number(row.net_tons),
+        material: row.material,
+        time: row.time_text,
+        notes: row.notes || ''
+      };
+    }
+
+    function mapOrderFromDb(row) {
+      return {
+        id: row.id,
+        date: row.order_date,
+        customer: row.customer,
+        job: row.job,
+        material: row.material,
+        tons: Number(row.tons),
+        loads: Number(row.loads) || 0,
+        status: row.status,
+        notes: row.notes || ''
+      };
+    }
+
+    async function pullDeskFromSupabase() {
+      const [stRes, ordRes] = await Promise.all([
+        supabaseClient.from('scale_tickets').select('*').order('ticket_date', { ascending: false }),
+        supabaseClient.from('daily_orders').select('*').order('order_date', { ascending: false })
+      ]);
+      if (stRes.error) throw stRes.error;
+      if (ordRes.error) throw ordRes.error;
+      state.scaleTickets = (stRes.data || []).map(mapScaleFromDb);
+      state.dailyOrders = (ordRes.data || []).map(mapOrderFromDb);
+    }
+
+    async function sbUpsertScale(t) {
+      if (!supabaseClient) return;
+      const row = {
+        id: t.id,
+        ticket_date: t.date,
+        truck: t.truck,
+        ticket: t.ticket || '',
+        net_tons: Number(t.netTons),
+        material: t.material,
+        time_text: String(t.time),
+        notes: t.notes || ''
+      };
+      const { error } = await supabaseClient.from('scale_tickets').upsert(row);
+      if (error) console.error(error);
+    }
+
+    async function sbDeleteScale(id) {
+      if (!supabaseClient) return;
+      const { error } = await supabaseClient.from('scale_tickets').delete().eq('id', id);
+      if (error) console.error(error);
+    }
+
+    async function sbUpsertOrder(o) {
+      if (!supabaseClient) return;
+      const row = {
+        id: o.id,
+        order_date: o.date,
+        customer: o.customer,
+        job: o.job,
+        material: o.material,
+        tons: Number(o.tons),
+        loads: parseInt(String(o.loads), 10) || 0,
+        status: o.status,
+        notes: o.notes || ''
+      };
+      const { error } = await supabaseClient.from('daily_orders').upsert(row);
+      if (error) console.error(error);
+    }
+
+    async function sbDeleteOrder(id) {
+      if (!supabaseClient) return;
+      const { error } = await supabaseClient.from('daily_orders').delete().eq('id', id);
+      if (error) console.error(error);
+    }
+
     function isoFromDate(d) {
       const y = d.getFullYear();
       const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -1482,6 +1586,7 @@
     }
 
     function seedDeskIfEmpty() {
+      if (supabaseClient) return;
       if (state.scaleTickets.length || state.dailyOrders.length) return;
       const today = isoFromDate(new Date());
       const prior = isoFromDate(new Date(Date.now() - 86400000));
@@ -1547,7 +1652,7 @@
         showToast('Enter truck # and net tons.');
         return;
       }
-      state.scaleTickets.unshift({
+      const newTicket = {
         id: `S-${Date.now()}`,
         date: state.deskDate,
         truck,
@@ -1556,8 +1661,10 @@
         material: el('scaleMaterial').value.trim() || '—',
         time: el('scaleTime').value || '—',
         notes: el('scaleNotes').value.trim()
-      });
+      };
+      state.scaleTickets.unshift(newTicket);
       persistDesk();
+      void sbUpsertScale(newTicket);
       clearScaleForm();
       renderDesk();
       showToast('Scale ticket logged.');
@@ -1567,6 +1674,7 @@
       state.scaleTickets = state.scaleTickets.filter((t) => t.id !== id);
       persistDesk();
       renderDesk();
+      void sbDeleteScale(id);
     }
 
     function addDailyOrder() {
@@ -1576,7 +1684,7 @@
         showToast('Enter customer and tons ordered.');
         return;
       }
-      state.dailyOrders.unshift({
+      const newOrder = {
         id: `O-${Date.now()}`,
         date: state.deskDate,
         customer,
@@ -1586,8 +1694,10 @@
         loads: parseInt(el('orderLoads').value, 10) || 0,
         status: el('orderStatus').value,
         notes: el('orderNotes').value.trim()
-      });
+      };
+      state.dailyOrders.unshift(newOrder);
       persistDesk();
+      void sbUpsertOrder(newOrder);
       el('orderCustomer').value = '';
       el('orderJob').value = '';
       el('orderMaterial').value = '';
@@ -1603,6 +1713,7 @@
       state.dailyOrders = state.dailyOrders.filter((o) => o.id !== id);
       persistDesk();
       renderDesk();
+      void sbDeleteOrder(id);
     }
 
     function renderScaleTable() {
@@ -2253,13 +2364,27 @@
       });
     }
 
-    initDeskDate();
-    loadDeskStorage();
-    seedDeskIfEmpty();
+    (async function bootstrapDesk() {
+      initDeskDate();
+      if (initSupabase()) {
+        try {
+          await pullDeskFromSupabase();
+          persistDesk();
+        } catch (err) {
+          console.error(err);
+          showToast('Could not load Supabase — using saved browser data.');
+          loadDeskStorage();
+          seedDeskIfEmpty();
+        }
+      } else {
+        loadDeskStorage();
+        seedDeskIfEmpty();
+      }
 
-    renderAll();
-    syncAuthCopy();
-    el('authName').style.display = 'none';
+      renderAll();
+      syncAuthCopy();
+      el('authName').style.display = 'none';
+    })();
   </script>
 </body>
 </html>
