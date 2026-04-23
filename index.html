@@ -21,9 +21,8 @@
       </div>
 
       <nav class="nav-links">
-        <a href="/" data-route>Home</a>
+        <a href="/" data-route>Loads</a>
         <a href="/desk" data-route>Scale desk</a>
-        <a href="/loads" data-route>Loads</a>
         <a href="/ops" data-route>Ops desk</a>
         <a href="/admin" data-route>Admin</a>
       </nav>
@@ -36,26 +35,6 @@
     </header>
 
     <main>
-      <section id="homeView" class="view active">
-        <section class="hero-grid">
-          <article class="hero-main">
-            <div class="hero-pattern"></div>
-            <div class="overlay"></div>
-            <div class="hero-content">
-              <span class="eyebrow" id="heroBadge">Featured load plan</span>
-              <h2 class="hero-title" id="heroTitle">Springfield pit — 1½″ base</h2>
-              <p class="hero-text" id="heroText">Coordinate quarry pulls, truck assignments, and delivered tons with the same polished dark UI—built for dispatchers who live in the schedule, not in spreadsheets.</p>
-              <div class="hero-actions">
-                <button type="button" class="primary-btn" onclick="openDetail(state.templates[0].tid)">View load plan</button>
-                <button type="button" class="ghost-btn" onclick="navigate('/builder')">New dispatch sheet</button>
-              </div>
-            </div>
-          </article>
-
-          <div class="side-stack" id="promoStack"></div>
-        </section>
-      </section>
-
       <section id="deskView" class="view">
         <section class="section" id="desk">
           <div class="section-top">
@@ -149,7 +128,7 @@
         </section>
       </section>
 
-      <section id="loadsView" class="view">
+      <section id="loadsView" class="view active">
         <section class="section" id="loads">
           <div class="section-top">
             <div>

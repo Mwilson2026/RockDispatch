@@ -13,7 +13,7 @@ npm run dev
 
 Open the URL Vite prints (usually `http://localhost:5173`).
 
-The UI is split into **routes** so you can work on one area at a time: `/` (home + hero), `/desk`, `/loads`, `/ops`, `/builder`, `/admin`, and `/load/<template-id>` for a load plan detail. Nav links use real URLs; production uses `vercel.json` so refresh/deep links resolve to the app.
+The UI is split into **routes** so you can work on one area at a time: **`/`** is the **Loads** board (same as `/loads`), plus `/desk`, `/ops`, `/builder`, `/admin`, and `/load/<template-id>` for a load plan detail. Nav links use real URLs; production uses `vercel.json` so refresh/deep links resolve to the app.
 
 ## Supabase
 

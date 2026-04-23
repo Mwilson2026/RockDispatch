@@ -149,7 +149,7 @@ const baseTemplates = [
       searchQuery: '',
       saved: new Set(),
       builderLines: [],
-      currentView: 'homeView',
+      currentView: 'loadsView',
       currentDetailId: null,
       authMode: 'login',
       user: null,
@@ -816,8 +816,6 @@ function onAuthNavClick() {
     }
 
     function formatMoney(v) { return `$${Number(v || 0).toFixed(2)}`; }
-    function formatShortMoney(v) { return `$${Number(v || 0).toFixed(0)}`; }
-
     function daysUntil(dateString) {
       const diff = new Date(dateString).getTime() - Date.now();
       if (diff <= 0) return 'Window closed';
@@ -835,9 +833,8 @@ function onAuthNavClick() {
 
     function parsePath(pathname) {
       const raw = pathname.replace(/\/$/, '') || '/';
-      if (raw === '/') return { page: 'home' };
+      if (raw === '/' || raw === '/loads') return { page: 'loads' };
       if (raw === '/desk') return { page: 'desk' };
-      if (raw === '/loads') return { page: 'loads' };
       if (raw === '/ops') return { page: 'ops' };
       if (raw === '/builder') return { page: 'builder' };
       if (raw === '/admin') return { page: 'admin' };
@@ -846,18 +843,20 @@ function onAuthNavClick() {
         try {
           tid = decodeURIComponent(tid);
         } catch {
-          return { page: 'home' };
+          return { page: 'loads' };
         }
         return { page: 'detail', tid };
       }
-      return { page: 'home' };
+      return { page: 'loads' };
     }
 
     function updateNavActive(pathname) {
       const p = pathname.replace(/\/$/, '') || '/';
       document.querySelectorAll('a[data-route]').forEach((a) => {
         const href = (a.getAttribute('href') || '').replace(/\/$/, '') || '/';
-        if (p === href) a.setAttribute('aria-current', 'page');
+        const loadsHome = (p === '/' || p === '/loads') && href === '/';
+        const active = p === href || loadsHome;
+        if (active) a.setAttribute('aria-current', 'page');
         else a.removeAttribute('aria-current');
       });
     }
@@ -883,29 +882,25 @@ function onAuthNavClick() {
         const template = getTemplateById(route.tid);
         if (!template) {
           showToast('Load plan not found.');
-          navigate('/loads', { replace: true });
+          navigate('/', { replace: true });
           return;
         }
         renderDetail();
         switchView('detailView');
-        updateNavActive('/loads');
+        updateNavActive(window.location.pathname);
         return;
       }
 
       renderAll();
 
       switch (route.page) {
-        case 'home':
-          switchView('homeView');
-          updateNavActive('/');
-          break;
         case 'desk':
           switchView('deskView');
           updateNavActive('/desk');
           break;
         case 'loads':
           switchView('loadsView');
-          updateNavActive('/loads');
+          updateNavActive(window.location.pathname);
           break;
         case 'ops':
           switchView('opsView');
@@ -922,7 +917,7 @@ function onAuthNavClick() {
           updateNavActive('/admin');
           break;
         default:
-          switchView('homeView');
+          switchView('loadsView');
           updateNavActive('/');
       }
     }
@@ -983,35 +978,6 @@ function onAuthNavClick() {
 
     function getTemplateTotal(template) {
       return template.lineItems.reduce((sum, item) => sum + Number(item.qty) * Number(item.rate), 0);
-    }
-
-    function renderHero() {
-      const featured = state.templates[0];
-      el('heroBadge').textContent = featured.status;
-      el('heroTitle').textContent = featured.name;
-      el('heroText').textContent = featured.description;
-
-      const promoStack = el('promoStack');
-      promoStack.innerHTML = '';
-      state.templates.slice(1, 3).forEach((template) => {
-        const card = document.createElement('article');
-        card.className = 'promo-card';
-        card.innerHTML = `
-          <div>
-            <small>${template.category}</small>
-            <h3>${template.name}</h3>
-            <p>${template.description}</p>
-          </div>
-          <div class="promo-footer">
-            <div>
-              <div style="color: var(--muted); font-size: 13px;">${template.customer}</div>
-              <div style="font-size: 20px; font-weight: 800; margin-top: 5px;">${formatShortMoney(getTemplateTotal(template))}</div>
-            </div>
-            <button type="button" class="mini-btn" onclick="openDetail(${JSON.stringify(template.tid)})">View</button>
-          </div>
-        `;
-        promoStack.appendChild(card);
-      });
     }
 
     function renderFeedTabs() {
@@ -1127,7 +1093,7 @@ function onAuthNavClick() {
       const template = getTemplateById(state.currentDetailId);
       if (!template) {
         showToast('Load plan not found.');
-        navigate('/loads', { replace: true });
+        navigate('/', { replace: true });
         return;
       }
 
@@ -1527,7 +1493,6 @@ function onAuthNavClick() {
     }
 
     function renderAll() {
-      renderHero();
       renderFeedTabs();
       renderFilters();
       renderTemplates();
