@@ -1,6 +1,13 @@
 import './style.css';
 import { createClient } from '@supabase/supabase-js';
 
+try {
+  const stored = localStorage.getItem('rockDispatch_theme');
+  document.documentElement.dataset.theme = stored === 'light' ? 'light' : 'dark';
+} catch (e) {
+  document.documentElement.dataset.theme = 'dark';
+}
+
 const baseTemplates = [
       {
         id: 4,
@@ -75,6 +82,7 @@ const baseTemplates = [
     const STORAGE_SCALE = 'rockDispatch_scaleTickets_v1';
     const STORAGE_ORDERS = 'rockDispatch_dailyOrders_v1';
     const STORAGE_SALES_ORDERS = 'rockDispatch_salesOrders_v1';
+    const STORAGE_CUSTOMER_ACCOUNTS = 'rockDispatch_customerAccounts_v1';
 
     function seedLocalBaseTemplates() {
       return structuredClone(baseTemplates).map((b) => ({
@@ -108,7 +116,9 @@ const baseTemplates = [
       ordersBoardDate: '',
       ordersCalendarView: { y: new Date().getFullYear(), m: new Date().getMonth() },
       ordersCalendarCollapsed: false,
-      salesOrders: []
+      salesOrders: [],
+      customerAccounts: [],
+      selectedCustomerAccountId: null
     };
 
     (function initOrdersBoardDefaults() {
@@ -595,6 +605,213 @@ function onAuthNavClick() {
       } catch (e) {}
     }
 
+    function loadCustomerAccountsStorage() {
+      try {
+        const raw = localStorage.getItem(STORAGE_CUSTOMER_ACCOUNTS);
+        if (raw) state.customerAccounts = JSON.parse(raw);
+        if (!Array.isArray(state.customerAccounts)) state.customerAccounts = [];
+      } catch (e) {
+        state.customerAccounts = [];
+      }
+    }
+
+    function persistCustomerAccounts() {
+      try {
+        localStorage.setItem(STORAGE_CUSTOMER_ACCOUNTS, JSON.stringify(state.customerAccounts));
+      } catch (e) {}
+    }
+
+    function setTheme(theme) {
+      const t = theme === 'light' ? 'light' : 'dark';
+      document.documentElement.dataset.theme = t;
+      try {
+        localStorage.setItem('rockDispatch_theme', t);
+      } catch (e) {}
+      syncThemeRadios();
+    }
+
+    function syncThemeRadios() {
+      const cur = document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+      document.querySelectorAll('input[name="appTheme"]').forEach((r) => {
+        r.checked = r.value === cur;
+      });
+    }
+
+    function clearAccountSelection() {
+      state.selectedCustomerAccountId = null;
+      const hid = el('soAccountId');
+      const search = el('soAccountSearch');
+      const hint = el('soAccountHint');
+      if (hid) hid.value = '';
+      if (search) search.value = '';
+      if (hint) {
+        hint.textContent = state.customerAccounts.length
+          ? 'Search and select a customer account.'
+          : 'No accounts yet — an admin can add customer accounts in Settings.';
+      }
+      const dd = el('soAccountDropdown');
+      if (dd) dd.hidden = true;
+    }
+
+    function getFilteredCustomerAccounts() {
+      const q = (el('soAccountSearch')?.value || '').trim().toLowerCase();
+      return state.customerAccounts.filter((a) => !q || a.name.toLowerCase().includes(q));
+    }
+
+    function renderAccountDropdown() {
+      const dd = el('soAccountDropdown');
+      if (!dd) return;
+      const items = getFilteredCustomerAccounts();
+      dd.innerHTML = '';
+      items.forEach((a) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'account-option';
+        btn.setAttribute('role', 'option');
+        btn.dataset.id = a.id;
+        btn.textContent = a.name;
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          selectCustomerAccount(a.id);
+        });
+        dd.appendChild(btn);
+      });
+      dd.hidden = items.length === 0;
+    }
+
+    function selectCustomerAccount(id) {
+      const acc = state.customerAccounts.find((x) => x.id === id);
+      if (!acc) return;
+      state.selectedCustomerAccountId = id;
+      const hid = el('soAccountId');
+      const search = el('soAccountSearch');
+      const hint = el('soAccountHint');
+      if (hid) hid.value = id;
+      if (search) search.value = acc.name;
+      if (hint) hint.textContent = `Selected: ${acc.name}`;
+      const dd = el('soAccountDropdown');
+      if (dd) dd.hidden = true;
+    }
+
+    function renderSettingsPage() {
+      if (!el('settingsPanelAppearance')) return;
+      syncThemeRadios();
+      const adminBlk = el('settingsAccountsAdminBlock');
+      const locked = el('settingsAccountsLocked');
+      const canManage = !!state.isAdmin;
+      if (adminBlk) adminBlk.hidden = !canManage;
+      if (locked) locked.hidden = canManage;
+      if (canManage) renderCustomerAccountsList();
+    }
+
+    function renderCustomerAccountsList() {
+      const wrap = el('customerAccountsList');
+      if (!wrap) return;
+      if (!state.customerAccounts.length) {
+        wrap.innerHTML = '<div class="empty-state">No customer accounts yet. Add one above.</div>';
+        return;
+      }
+      wrap.innerHTML = '';
+      state.customerAccounts.forEach((a) => {
+        const row = document.createElement('div');
+        row.className = 'settings-account-row';
+        row.innerHTML = `
+          <span class="name">${escapeHtml(a.name)}</span>
+          <div class="settings-account-actions">
+            <button type="button" class="ghost-btn mini-remove" data-edit="${escapeHtml(a.id)}">Rename</button>
+            <button type="button" class="ghost-btn mini-remove" data-del="${escapeHtml(a.id)}">Delete</button>
+          </div>
+        `;
+        row.querySelector('[data-edit]')?.addEventListener('click', () => renameCustomerAccount(a.id));
+        row.querySelector('[data-del]')?.addEventListener('click', () => deleteCustomerAccount(a.id));
+        wrap.appendChild(row);
+      });
+    }
+
+    function addCustomerAccountFromSettings() {
+      if (!state.isAdmin) {
+        showToast('Only administrators can manage customer accounts.');
+        return;
+      }
+      const inp = el('newAccountName');
+      const name = inp?.value.trim() ?? '';
+      if (!name) {
+        showToast('Enter an account name.');
+        return;
+      }
+      if (state.customerAccounts.some((a) => a.name.toLowerCase() === name.toLowerCase())) {
+        showToast('That account name already exists.');
+        return;
+      }
+      state.customerAccounts.push({ id: `CA-${Date.now()}`, name });
+      persistCustomerAccounts();
+      if (inp) inp.value = '';
+      renderCustomerAccountsList();
+      renderAccountDropdown();
+      clearAccountSelection();
+      showToast('Customer account added.');
+    }
+
+    function renameCustomerAccount(id) {
+      if (!state.isAdmin) return;
+      const a = state.customerAccounts.find((x) => x.id === id);
+      if (!a) return;
+      const next = window.prompt('Rename customer account', a.name);
+      if (next == null) return;
+      const name = next.trim();
+      if (!name) {
+        showToast('Name cannot be empty.');
+        return;
+      }
+      a.name = name;
+      persistCustomerAccounts();
+      renderCustomerAccountsList();
+      renderAccountDropdown();
+      if (state.selectedCustomerAccountId === id) selectCustomerAccount(id);
+      showToast('Account updated.');
+    }
+
+    function deleteCustomerAccount(id) {
+      if (!state.isAdmin) return;
+      if (!window.confirm('Delete this customer account? Existing orders keep the name they had when saved.')) return;
+      state.customerAccounts = state.customerAccounts.filter((a) => a.id !== id);
+      persistCustomerAccounts();
+      renderCustomerAccountsList();
+      renderAccountDropdown();
+      if (state.selectedCustomerAccountId === id) clearAccountSelection();
+      showToast('Account removed.');
+    }
+
+    function showSettingsSection(panel) {
+      const app = el('settingsPanelAppearance');
+      const acc = el('settingsPanelAccounts');
+      const navBtns = document.querySelectorAll('.settings-nav-btn');
+      navBtns.forEach((b) => {
+        const active = b.dataset.settingsPanel === panel;
+        b.classList.toggle('active', active);
+      });
+      if (app) {
+        app.hidden = panel !== 'appearance';
+      }
+      if (acc) acc.hidden = panel !== 'accounts';
+      if (panel === 'accounts') renderSettingsPage();
+    }
+
+    let settingsUiInitialized = false;
+    function initSettingsNav() {
+      if (settingsUiInitialized) return;
+      settingsUiInitialized = true;
+      document.querySelectorAll('.settings-nav-btn').forEach((btn) => {
+        btn.addEventListener('click', () => showSettingsSection(btn.dataset.settingsPanel));
+      });
+      document.querySelectorAll('input[name="appTheme"]').forEach((r) => {
+        r.addEventListener('change', () => {
+          if (r.checked) setTheme(r.value);
+        });
+      });
+    }
+
     function dayHasSalesOrders(iso) {
       return state.salesOrders.some((o) => o.date === iso);
     }
@@ -642,12 +859,11 @@ function onAuthNavClick() {
     }
 
     function clearSalesOrderForm() {
-      const a = el('soAccount');
+      clearAccountSelection();
       const n = el('soName');
       const p = el('soPhone');
       const ad = el('soAddress');
       const no = el('soNotes');
-      if (a) a.value = '';
       if (n) n.value = '';
       if (p) p.value = '';
       if (ad) ad.value = '';
@@ -655,19 +871,26 @@ function onAuthNavClick() {
     }
 
     function addSalesOrder() {
-      const account = el('soAccount')?.value.trim() ?? '';
+      const accountId = el('soAccountId')?.value?.trim() ?? '';
+      const accRecord = accountId ? state.customerAccounts.find((x) => x.id === accountId) : null;
+      const accountName = accRecord ? accRecord.name : '';
       const name = el('soName')?.value.trim() ?? '';
       const phone = el('soPhone')?.value.trim() ?? '';
       const address = el('soAddress')?.value.trim() ?? '';
       const notes = el('soNotes')?.value.trim() ?? '';
-      if (!name && !account && !address) {
-        showToast('Enter at least customer name, account, or jobsite.');
+      if (state.customerAccounts.length > 0 && !accountId) {
+        showToast('Select a customer account from the list.');
+        return;
+      }
+      if (!name && !accountName && !address) {
+        showToast('Enter customer name or jobsite, or add more account details.');
         return;
       }
       const row = {
         id: `SO-${Date.now()}`,
         date: state.ordersBoardDate,
-        customerAccount: account,
+        customerAccountId: accountId,
+        customerAccount: accountName,
         customerName: name,
         customerPhone: phone,
         jobsiteAddress: address,
@@ -784,6 +1007,13 @@ function onAuthNavClick() {
       if (picker && state.ordersBoardDate) picker.value = state.ordersBoardDate;
       renderSalesOrdersList();
       renderOrdersCalendar();
+      const hint = el('soAccountHint');
+      if (hint && !state.selectedCustomerAccountId) {
+        hint.textContent = state.customerAccounts.length
+          ? 'Search and select a customer account.'
+          : 'No accounts yet — an admin can add customer accounts in Settings.';
+      }
+      renderAccountDropdown();
     }
 
     function clearScaleForm() {
@@ -1000,6 +1230,7 @@ function onAuthNavClick() {
       const raw = pathname.replace(/\/$/, '') || '/';
       if (raw === '/' || raw === '/loads' || raw === '/orders') return { page: 'orders' };
       if (raw === '/desk') return { page: 'desk' };
+      if (raw === '/settings') return { page: 'settings' };
       if (raw === '/ops') return { page: 'ops' };
       if (raw === '/builder') return { page: 'builder' };
       if (raw === '/admin') return { page: 'admin' };
@@ -1032,7 +1263,7 @@ function onAuthNavClick() {
       const normalized = pathname.replace(/\/$/, '') || '/';
       const known =
         normalized === '/' ||
-        ['/desk', '/loads', '/orders', '/ops', '/builder', '/admin'].includes(normalized) ||
+        ['/desk', '/loads', '/orders', '/settings', '/ops', '/builder', '/admin'].includes(normalized) ||
         normalized.startsWith('/load/');
       if (!known) {
         history.replaceState(null, '', '/');
@@ -1081,6 +1312,12 @@ function onAuthNavClick() {
           renderAdmin();
           switchView('adminView');
           updateNavActive('/admin');
+          break;
+        case 'settings':
+          renderSettingsPage();
+          initSettingsNav();
+          switchView('settingsView');
+          updateNavActive('/settings');
           break;
         default:
           switchView('ordersView');
@@ -1668,6 +1905,7 @@ function onAuthNavClick() {
       renderStories();
       renderDesk();
       renderOrdersPage();
+      renderSettingsPage();
       updateBuilderBadge();
     }
 
@@ -1694,6 +1932,18 @@ function onAuthNavClick() {
         if (v) setOrdersBoardDate(v);
       });
     }
+
+    const soAccountSearch = el('soAccountSearch');
+    if (soAccountSearch) {
+      soAccountSearch.addEventListener('input', () => renderAccountDropdown());
+      soAccountSearch.addEventListener('focus', () => renderAccountDropdown());
+    }
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest?.('.account-combo')) {
+        const dd = el('soAccountDropdown');
+        if (dd) dd.hidden = true;
+      }
+    });
 
     Object.assign(window, {
       state,
@@ -1725,15 +1975,20 @@ function onAuthNavClick() {
       printQuote,
       createTemplate,
       fillAdminDemo,
-      submitAuth
+      submitAuth,
+      setTheme,
+      selectCustomerAccount,
+      addCustomerAccountFromSettings
     });
 
     (async function bootstrapDesk() {
       initDeskDate();
+      syncThemeRadios();
 
       if (!initSupabase()) {
         loadDeskStorage();
         loadSalesOrdersStorage();
+        loadCustomerAccountsStorage();
         seedDeskIfEmpty();
         updateAuthNav();
         initRouter();
@@ -1749,6 +2004,7 @@ function onAuthNavClick() {
           resetStateAfterSignOut();
           loadDeskStorage();
           loadSalesOrdersStorage();
+          loadCustomerAccountsStorage();
           seedDeskIfEmpty();
           updateAuthNav();
           toggleAuth(true);
@@ -1786,17 +2042,20 @@ function onAuthNavClick() {
           await loadCloudData();
           persistDesk();
           loadSalesOrdersStorage();
+          loadCustomerAccountsStorage();
         } catch (err) {
           console.error(err);
           showToast('Could not load Supabase — using saved browser data.');
           loadDeskStorage();
           loadSalesOrdersStorage();
+          loadCustomerAccountsStorage();
           seedDeskIfEmpty();
         }
       } else {
         resetStateAfterSignOut();
         loadDeskStorage();
         loadSalesOrdersStorage();
+        loadCustomerAccountsStorage();
         seedDeskIfEmpty();
         toggleAuth(true);
         setAuthModalDismissable(false);

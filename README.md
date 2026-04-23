@@ -13,7 +13,9 @@ npm run dev
 
 Open the URL Vite prints (usually `http://localhost:5173`).
 
-The UI is split into **routes** so you can work on one area at a time: **`/`** is the **Orders** board (same as `/orders` or `/loads`), plus `/desk`, `/ops`, `/builder`, `/admin`, and `/load/<template-id>` for a load plan detail. Nav links use real URLs; production uses `vercel.json` so refresh/deep links resolve to the app. Customer orders on the Orders page are stored in **localStorage** (`rockDispatch_salesOrders_v1`) until you wire a backend.
+The UI is split into **routes** so you can work on one area at a time: **`/`** is the **Orders** board (same as `/orders` or `/loads`), plus `/desk`, `/ops`, `/settings`, `/builder`, `/admin`, and `/load/<template-id>` for a load plan detail. Nav links use real URLs; production uses `vercel.json` so refresh/deep links resolve to the app.
+
+**Local browser storage:** sales orders (`rockDispatch_salesOrders_v1`), customer account names for the Orders dropdown (`rockDispatch_customerAccounts_v1`), and theme (`rockDispatch_theme`). Only users with **admin** profile role can add/rename/delete customer accounts on the Settings page; wire Supabase later for shared data across devices.
 
 ## Supabase
 

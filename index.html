@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -25,9 +25,11 @@
         <a href="/desk" data-route>Scale desk</a>
         <a href="/ops" data-route>Ops desk</a>
         <a href="/admin" data-route>Admin</a>
+        <a href="/settings" data-route>Settings</a>
       </nav>
 
       <div class="nav-actions">
+        <button type="button" class="icon-btn" onclick="navigate('/settings')" title="Settings" aria-label="Settings">⚙</button>
         <button type="button" class="icon-btn" onclick="toggleAuth()" aria-label="Account">◎</button>
         <button type="button" class="ghost-btn menu-persist" onclick="onAuthNavClick()" id="authStatusBtn">Login</button>
         <button type="button" class="summary-btn" onclick="navigate('/builder')">Dispatch <span class="badge-count" id="builderCount">0</span></button>
@@ -150,7 +152,13 @@
               <div class="panel box orders-form-panel">
                 <h3>New order</h3>
                 <div class="field-grid-orders">
-                  <input id="soAccount" placeholder="Customer account #" autocomplete="off" />
+                  <div class="account-combo span-2">
+                    <label class="section-label" for="soAccountSearch">Customer account</label>
+                    <input type="search" id="soAccountSearch" placeholder="Search accounts, then pick one…" autocomplete="off" />
+                    <div id="soAccountDropdown" class="account-dropdown" hidden role="listbox"></div>
+                    <input type="hidden" id="soAccountId" value="" />
+                    <p class="account-hint" id="soAccountHint">Search and select a customer account.</p>
+                  </div>
                   <input id="soName" placeholder="Customer name" autocomplete="off" />
                   <input id="soPhone" type="tel" placeholder="Customer phone" autocomplete="tel" />
                   <input id="soAddress" class="span-2" placeholder="Jobsite address" autocomplete="street-address" />
@@ -322,6 +330,57 @@
               <button type="button" class="ghost-btn" onclick="printQuote()">Print view</button>
             </div>
           </aside>
+        </div>
+      </section>
+
+      <section id="settingsView" class="view">
+        <div class="settings-page">
+          <div class="section-top">
+            <div>
+              <div class="section-label">Settings</div>
+              <h2>Preferences</h2>
+              <p style="color: var(--muted); margin-top: 10px; font-size: 14px;">Appearance applies on this device. Customer accounts are managed by administrators.</p>
+            </div>
+            <button type="button" class="ghost-btn" onclick="navigate('/')">Back</button>
+          </div>
+
+          <div class="settings-layout">
+            <nav class="settings-nav" aria-label="Settings sections">
+              <button type="button" class="settings-nav-btn active" data-settings-panel="appearance">Appearance</button>
+              <button type="button" class="settings-nav-btn" data-settings-panel="accounts">Customer accounts</button>
+            </nav>
+            <div class="settings-content">
+              <section id="settingsPanelAppearance" class="settings-panel">
+                <h3>Theme</h3>
+                <p style="color: var(--muted); margin-bottom: 16px;">Choose light or dark mode for the whole app.</p>
+                <div class="theme-options">
+                  <label class="theme-option">
+                    <input type="radio" name="appTheme" value="dark" />
+                    <span>Dark</span>
+                  </label>
+                  <label class="theme-option">
+                    <input type="radio" name="appTheme" value="light" />
+                    <span>Light</span>
+                  </label>
+                </div>
+              </section>
+
+              <section id="settingsPanelAccounts" class="settings-panel" hidden>
+                <div id="settingsAccountsAdminBlock">
+                  <h3>Customer accounts</h3>
+                  <p style="color: var(--muted); margin-bottom: 14px;">These names appear in the Orders form. Only admins can add, edit, or delete.</p>
+                  <div class="settings-add-account">
+                    <input id="newAccountName" placeholder="New customer account name" autocomplete="off" />
+                    <button type="button" class="primary-btn" onclick="addCustomerAccountFromSettings()">Add account</button>
+                  </div>
+                  <div id="customerAccountsList" class="settings-accounts-list"></div>
+                </div>
+                <div id="settingsAccountsLocked" hidden>
+                  <p style="color: var(--muted);">You need administrator permissions to manage customer accounts.</p>
+                </div>
+              </section>
+            </div>
+          </div>
         </div>
       </section>
 
