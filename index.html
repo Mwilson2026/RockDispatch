@@ -21,17 +21,17 @@
       </div>
 
       <nav class="nav-links">
-        <a href="#" onclick="goHome(); return false;">Home</a>
-        <a href="#desk" onclick="goHome(); return false;">Scale desk</a>
-        <a href="#loads" onclick="goHome(); return false;">Loads</a>
-        <a href="#ops" onclick="goHome(); return false;">Ops desk</a>
-        <a href="#" onclick="openAdmin(); return false;">Admin</a>
+        <a href="/" data-route>Home</a>
+        <a href="/desk" data-route>Scale desk</a>
+        <a href="/loads" data-route>Loads</a>
+        <a href="/ops" data-route>Ops desk</a>
+        <a href="/admin" data-route>Admin</a>
       </nav>
 
       <div class="nav-actions">
         <button type="button" class="icon-btn" onclick="toggleAuth()" aria-label="Account">◎</button>
         <button type="button" class="ghost-btn menu-persist" onclick="onAuthNavClick()" id="authStatusBtn">Login</button>
-        <button type="button" class="summary-btn" onclick="openBuilder()">Dispatch <span class="badge-count" id="builderCount">0</span></button>
+        <button type="button" class="summary-btn" onclick="navigate('/builder')">Dispatch <span class="badge-count" id="builderCount">0</span></button>
       </div>
     </header>
 
@@ -47,14 +47,16 @@
               <p class="hero-text" id="heroText">Coordinate quarry pulls, truck assignments, and delivered tons with the same polished dark UI—built for dispatchers who live in the schedule, not in spreadsheets.</p>
               <div class="hero-actions">
                 <button type="button" class="primary-btn" onclick="openDetail(state.templates[0].tid)">View load plan</button>
-                <button type="button" class="ghost-btn" onclick="openBuilder()">New dispatch sheet</button>
+                <button type="button" class="ghost-btn" onclick="navigate('/builder')">New dispatch sheet</button>
               </div>
             </div>
           </article>
 
           <div class="side-stack" id="promoStack"></div>
         </section>
+      </section>
 
+      <section id="deskView" class="view">
         <section class="section" id="desk">
           <div class="section-top">
             <div>
@@ -145,7 +147,9 @@
             </div>
           </div>
         </section>
+      </section>
 
+      <section id="loadsView" class="view">
         <section class="section" id="loads">
           <div class="section-top">
             <div>
@@ -164,7 +168,9 @@
 
           <div class="cards-grid" id="templateGrid"></div>
         </section>
+      </section>
 
+      <section id="opsView" class="view">
         <section class="section" id="ops">
           <div class="section-top">
             <div>
@@ -183,7 +189,7 @@
             <div class="section-label">Load plan</div>
             <h2 id="detailHeader">Overview</h2>
           </div>
-          <button type="button" class="ghost-btn" onclick="goHome()">Back home</button>
+          <button type="button" class="ghost-btn" onclick="navigate('/loads')">Back to loads</button>
         </div>
 
         <div class="detail-grid">
@@ -251,7 +257,7 @@
             <div class="section-label">Dispatch builder</div>
             <h2>Build a haul sheet</h2>
           </div>
-          <button type="button" class="ghost-btn" onclick="goHome()">Back home</button>
+          <button type="button" class="ghost-btn" onclick="navigate('/')">Back home</button>
         </div>
 
         <div class="builder-grid">
@@ -315,7 +321,7 @@
             <div class="section-label">Admin</div>
             <h2>Templates &amp; issued haul sheets</h2>
           </div>
-          <button type="button" class="ghost-btn" onclick="goHome()">Back home</button>
+          <button type="button" class="ghost-btn" onclick="navigate('/')">Back home</button>
         </div>
 
         <div class="dashboard-grid">

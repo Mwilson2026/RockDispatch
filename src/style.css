@@ -101,6 +101,16 @@
       align-items: center;
     }
 
+    .nav-links a[data-route] {
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .nav-links a[data-route][aria-current="page"] {
+      color: #fff;
+      font-weight: 700;
+    }
+
     .nav-actions {
       display: flex;
       align-items: center;

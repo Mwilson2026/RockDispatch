@@ -199,8 +199,29 @@ function allowPublicSignup() {
   return String(import.meta.env.VITE_ALLOW_PUBLIC_SIGNUP || '').toLowerCase() === 'true';
 }
 
+/** Project URL only: https://xxxx.supabase.co — not /rest/v1, /auth/v1, or other paths (those break auth). */
+function normalizeSupabaseProjectUrl(raw) {
+  const trimmed = String(raw || '').trim().replace(/\/+$/, '');
+  if (!trimmed) return '';
+  try {
+    const u = new URL(trimmed);
+    if (u.pathname && u.pathname !== '/') {
+      console.warn(
+        '[Rock Dispatch] VITE_SUPABASE_URL should be the project root only. Stripping path:',
+        u.pathname,
+        '→ using',
+        u.origin
+      );
+      return u.origin;
+    }
+    return trimmed;
+  } catch {
+    return trimmed;
+  }
+}
+
 function initSupabase() {
-  const url = (import.meta.env.VITE_SUPABASE_URL || '').trim();
+  const url = normalizeSupabaseProjectUrl(import.meta.env.VITE_SUPABASE_URL || '');
   const key = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
   if (!url || !key) return false;
   supabaseClient = createClient(url, key, {
@@ -248,7 +269,7 @@ function resetStateAfterSignOut() {
   state.session = null;
   state.role = 'user';
   state.isAdmin = false;
-  switchView('homeView');
+  navigate('/', { replace: true });
 }
 
 async function loadCloudData() {
@@ -806,30 +827,150 @@ function onAuthNavClick() {
 
     function switchView(viewId) {
       document.querySelectorAll('.view').forEach((view) => view.classList.remove('active'));
-      el(viewId).classList.add('active');
+      const node = el(viewId);
+      if (node) node.classList.add('active');
       state.currentView = viewId;
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
-    function goHome() {
+    function parsePath(pathname) {
+      const raw = pathname.replace(/\/$/, '') || '/';
+      if (raw === '/') return { page: 'home' };
+      if (raw === '/desk') return { page: 'desk' };
+      if (raw === '/loads') return { page: 'loads' };
+      if (raw === '/ops') return { page: 'ops' };
+      if (raw === '/builder') return { page: 'builder' };
+      if (raw === '/admin') return { page: 'admin' };
+      if (raw.startsWith('/load/')) {
+        let tid = raw.slice('/load/'.length);
+        try {
+          tid = decodeURIComponent(tid);
+        } catch {
+          return { page: 'home' };
+        }
+        return { page: 'detail', tid };
+      }
+      return { page: 'home' };
+    }
+
+    function updateNavActive(pathname) {
+      const p = pathname.replace(/\/$/, '') || '/';
+      document.querySelectorAll('a[data-route]').forEach((a) => {
+        const href = (a.getAttribute('href') || '').replace(/\/$/, '') || '/';
+        if (p === href) a.setAttribute('aria-current', 'page');
+        else a.removeAttribute('aria-current');
+      });
+    }
+
+    function applyRouteFromLocation() {
+      const pathname = window.location.pathname;
+      const normalized = pathname.replace(/\/$/, '') || '/';
+      const known =
+        normalized === '/' ||
+        ['/desk', '/loads', '/ops', '/builder', '/admin'].includes(normalized) ||
+        normalized.startsWith('/load/');
+      if (!known) {
+        history.replaceState(null, '', '/');
+        applyRouteFromLocation();
+        return;
+      }
+
+      const route = parsePath(pathname);
+
+      if (route.page === 'detail' && route.tid) {
+        state.currentDetailId = route.tid;
+        renderAll();
+        const template = getTemplateById(route.tid);
+        if (!template) {
+          showToast('Load plan not found.');
+          navigate('/loads', { replace: true });
+          return;
+        }
+        renderDetail();
+        switchView('detailView');
+        updateNavActive('/loads');
+        return;
+      }
+
       renderAll();
-      switchView('homeView');
+
+      switch (route.page) {
+        case 'home':
+          switchView('homeView');
+          updateNavActive('/');
+          break;
+        case 'desk':
+          switchView('deskView');
+          updateNavActive('/desk');
+          break;
+        case 'loads':
+          switchView('loadsView');
+          updateNavActive('/loads');
+          break;
+        case 'ops':
+          switchView('opsView');
+          updateNavActive('/ops');
+          break;
+        case 'builder':
+          renderBuilder();
+          switchView('builderView');
+          updateNavActive('/builder');
+          break;
+        case 'admin':
+          renderAdmin();
+          switchView('adminView');
+          updateNavActive('/admin');
+          break;
+        default:
+          switchView('homeView');
+          updateNavActive('/');
+      }
+    }
+
+    let routerBound = false;
+    function initRouter() {
+      if (!routerBound) {
+        routerBound = true;
+        window.addEventListener('popstate', () => applyRouteFromLocation());
+        document.addEventListener('click', (e) => {
+          const a = e.target.closest('a[data-route]');
+          if (!a) return;
+          const href = a.getAttribute('href');
+          if (!href || !href.startsWith('/') || href.startsWith('//')) return;
+          e.preventDefault();
+          navigate(href);
+        });
+      }
+      applyRouteFromLocation();
+    }
+
+    function navigate(path, { replace = false } = {}) {
+      try {
+        const next = new URL(path, window.location.origin);
+        const nextPath = next.pathname + next.search;
+        const cur = window.location.pathname + window.location.search;
+        if (replace) history.replaceState(null, '', nextPath);
+        else if (cur !== nextPath) history.pushState(null, '', nextPath);
+      } catch {
+        history.pushState(null, '', path);
+      }
+      applyRouteFromLocation();
+    }
+
+    function goHome() {
+      navigate('/');
     }
 
     function openDetail(id) {
-      state.currentDetailId = id;
-      renderDetail();
-      switchView('detailView');
+      navigate(`/load/${encodeURIComponent(id)}`);
     }
 
     function openBuilder() {
-      renderBuilder();
-      switchView('builderView');
+      navigate('/builder');
     }
 
     function openAdmin() {
-      renderAdmin();
-      switchView('adminView');
+      navigate('/admin');
     }
 
     function showToast(message) {
@@ -986,7 +1127,7 @@ function onAuthNavClick() {
       const template = getTemplateById(state.currentDetailId);
       if (!template) {
         showToast('Load plan not found.');
-        goHome();
+        navigate('/loads', { replace: true });
         return;
       }
 
@@ -1376,7 +1517,12 @@ function onAuthNavClick() {
           showToast('Signed in.');
         }
       } catch (err) {
-        showToast(err.message || String(err));
+        const msg = err.message || String(err);
+        const pathHint =
+          /path|invalid|not recognized|requested path/i.test(msg)
+            ? ' Fix: VITE_SUPABASE_URL must be https://YOUR-PROJECT.supabase.co (API settings) with no /rest or /auth path. Redeploy after changing env vars.'
+            : '';
+        showToast(msg + pathHint);
       }
     }
 
@@ -1405,6 +1551,7 @@ function onAuthNavClick() {
 
     Object.assign(window, {
       state,
+      navigate,
       goHome,
       openDetail,
       openBuilder,
@@ -1436,7 +1583,7 @@ function onAuthNavClick() {
         loadDeskStorage();
         seedDeskIfEmpty();
         updateAuthNav();
-        renderAll();
+        initRouter();
         syncAuthCopy();
         el('authName').style.display = 'none';
         return;
@@ -1452,7 +1599,7 @@ function onAuthNavClick() {
           updateAuthNav();
           toggleAuth(true);
           setAuthModalDismissable(false);
-          renderAll();
+          applyRouteFromLocation();
           return;
         }
 
@@ -1468,7 +1615,7 @@ function onAuthNavClick() {
             console.error(err);
             showToast('Could not sync after sign-in.');
           }
-          renderAll();
+          applyRouteFromLocation();
         }
       });
 
@@ -1499,7 +1646,7 @@ function onAuthNavClick() {
         updateAuthNav();
       }
 
-      renderAll();
+      initRouter();
       syncAuthCopy();
       el('authName').style.display = 'none';
     })();

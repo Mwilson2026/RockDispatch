@@ -13,6 +13,8 @@ npm run dev
 
 Open the URL Vite prints (usually `http://localhost:5173`).
 
+The UI is split into **routes** so you can work on one area at a time: `/` (home + hero), `/desk`, `/loads`, `/ops`, `/builder`, `/admin`, and `/load/<template-id>` for a load plan detail. Nav links use real URLs; production uses `vercel.json` so refresh/deep links resolve to the app.
+
 ## Supabase
 
 1. Create a project at [supabase.com](https://supabase.com).
@@ -62,6 +64,15 @@ where id = (select id from auth.users where email = 'you@company.com' limit 1);
 **Security:** keep admin accounts few; only the **anon** key belongs in `VITE_*` env vars—never the service role key in the frontend.
 
 Optional: `npx supabase link` / `npx supabase db push` instead of pasting SQL.
+
+### Login errors (“URL path not recognized”, “requested path is invalid”)
+
+These almost always mean **`VITE_SUPABASE_URL` is wrong**, not your email/password.
+
+1. In Supabase: **Project Settings → API**, copy **Project URL**. It must look exactly like `https://xxxxxxxx.supabase.co` — **no** `/rest/v1`, `/auth/v1`, or anything after `.co`.
+2. Put that value in **`.env.local`** (local) and **Vercel → Settings → Environment Variables** (production). Names must be **`VITE_SUPABASE_URL`** and **`VITE_SUPABASE_ANON_KEY`** (the `VITE_` prefix is required so Vite exposes them).
+3. **Redeploy** on Vercel after changing env vars; restart `npm run dev` locally.
+4. If the user was added in the dashboard, ensure they have a **password** (or use **Reset password**). Turn off **Confirm email** for testing if sign-in still fails with “email not confirmed”.
 
 ## Deploy on Vercel
 
