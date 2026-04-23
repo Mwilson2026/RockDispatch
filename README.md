@@ -33,6 +33,17 @@ With env vars set, the app syncs the **scale desk**, **load templates** (merged 
 
 Without `VITE_SUPABASE_*` env vars, the app stays in **offline** mode (localStorage only, demo login allowed).
 
+### Who can log in (no default user)
+
+Supabase uses **email + password** (there is no separate “username” field unless you treat email as the username).
+
+- **There is no default account** in the app or repo — that would be a security risk.
+- **Invite-only (recommended):** Do **not** set `VITE_ALLOW_PUBLIC_SIGNUP` (or set it to anything other than `true`). The sign-in modal then only offers **Sign in**. You create each person’s account yourself:
+  1. Supabase **Authentication → Users → Add user** → enter **email**, **password**, and confirm.
+  2. They sign in at your deployed URL with that email and password.
+- **Optional:** In Supabase **Authentication** settings, disable **public sign-ups** / **allow new users** if your project exposes that toggle — then even API-based `signUp` calls are refused (defense in depth alongside the UI).
+- **Self-registration (dev only):** Set `VITE_ALLOW_PUBLIC_SIGNUP=true` in `.env.local` and Vercel if you want the **Create account** tab back.
+
 ### Admin access (full org view in the web app)
 
 There is no safe way to ship a fixed default password in the repo. Create your own operator account and promote it:

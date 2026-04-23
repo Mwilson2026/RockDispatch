@@ -195,6 +195,10 @@ const baseTemplates = [
 
     let supabaseClient = null;
 
+function allowPublicSignup() {
+  return String(import.meta.env.VITE_ALLOW_PUBLIC_SIGNUP || '').toLowerCase() === 'true';
+}
+
 function initSupabase() {
   const url = (import.meta.env.VITE_SUPABASE_URL || '').trim();
   const key = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
@@ -1267,6 +1271,15 @@ function onAuthNavClick() {
 
     function renderAuthTabs() {
       const tabs = el('authTabs');
+      if (!tabs) return;
+      const signup = allowPublicSignup();
+      if (!signup) {
+        state.authMode = 'login';
+        tabs.style.display = 'none';
+        tabs.innerHTML = '';
+        return;
+      }
+      tabs.style.display = '';
       tabs.innerHTML = '';
       ;['login', 'register'].forEach((mode) => {
         const btn = document.createElement('button');
@@ -1284,9 +1297,12 @@ function onAuthNavClick() {
 
     function syncAuthCopy() {
       const login = state.authMode === 'login';
+      const inviteOnly = !allowPublicSignup();
       el('authTitle').textContent = login ? 'Welcome back' : 'Create dispatcher access';
       el('authText').textContent = login
-        ? 'Sign in to pin load plans and track issued haul sheets.'
+        ? inviteOnly
+          ? 'Sign in with the email and password issued to you. Access is by invitation only.'
+          : 'Sign in to pin load plans and track issued haul sheets.'
         : 'Register to save preferences across sessions when you connect a backend.';
       el('authSubmitBtn').textContent = login ? 'Sign in' : 'Create account';
       el('authName').style.display = login ? 'none' : 'block';
@@ -1336,6 +1352,10 @@ function onAuthNavClick() {
 
       try {
         if (state.authMode === 'register') {
+          if (!allowPublicSignup()) {
+            showToast('New accounts are created by your administrator in Supabase.');
+            return;
+          }
           const name = el('authName').value.trim();
           const { data, error } = await supabaseClient.auth.signUp({
             email,
