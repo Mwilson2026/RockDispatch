@@ -3,63 +3,6 @@ import { createClient } from '@supabase/supabase-js';
 
 const baseTemplates = [
       {
-        id: 1,
-        name: 'Springfield Pit — 1½″ Base Rock',
-        category: 'Base',
-        amount: 12480,
-        status: 'Scheduled',
-        customer: 'Ozark Siteworks',
-        project: 'Industrial pad — west gate',
-        issueDate: '2026-04-22',
-        validThrough: '2026-05-02',
-        terms: 'Net 15',
-        description: 'High-volume base course for a commercial pad with staged dumps and moisture checks at the scale house.',
-        specs: ['Pit: Springfield north cell', 'Target moisture band noted on ticket', 'Night pour backup window', 'DOT route pre-cleared'],
-        lineItems: [
-          { description: '1½″ base — delivered', qty: 480, unit: 'ton', rate: 24.5 },
-          { description: 'Freight / haul', qty: 32, unit: 'load', rate: 185 },
-          { description: 'Fuel surcharge', qty: 1, unit: 'lot', rate: 620 }
-        ]
-      },
-      {
-        id: 2,
-        name: 'Tri-State — 4000 PSI pour support',
-        category: 'Concrete',
-        amount: 9840,
-        status: 'In transit',
-        customer: 'Tri-State Builders',
-        project: 'Warehouse slab pour',
-        issueDate: '2026-04-20',
-        validThrough: '2026-04-28',
-        terms: 'Net 10',
-        description: 'Aggregate backfill and stone support around a large pour with tight slump windows.',
-        specs: ['Backup pit identified', 'Washout pit on standby', 'Dispatch holds until pump onsite'],
-        lineItems: [
-          { description: '3/4″ clean stone', qty: 220, unit: 'ton', rate: 26 },
-          { description: 'Pea gravel shoulder', qty: 45, unit: 'ton', rate: 31 },
-          { description: 'Short-load premium', qty: 4, unit: 'trip', rate: 95 }
-        ]
-      },
-      {
-        id: 3,
-        name: 'Hilltop — Loader &amp; haul support',
-        category: 'Equipment',
-        amount: 7180,
-        status: 'Pending',
-        customer: 'Hilltop Development',
-        project: 'Site prep — east bench',
-        issueDate: '2026-04-18',
-        validThrough: '2026-04-27',
-        terms: 'Due on receipt',
-        description: 'Hourly support for moving stripped spoil and feeding trucks at the face.',
-        specs: ['Face distance tracked hourly', 'Idle policy on file', 'Night shift optional'],
-        lineItems: [
-          { description: 'Loader w/ operator', qty: 14, unit: 'hr', rate: 175 },
-          { description: 'Articulated haul off-site', qty: 22, unit: 'load', rate: 135 },
-          { description: 'Mobilization', qty: 1, unit: 'lot', rate: 890 }
-        ]
-      },
-      {
         id: 4,
         name: 'North Ridge — 2″ clean + rip rap',
         category: 'Rip rap',
@@ -131,6 +74,7 @@ const baseTemplates = [
 
     const STORAGE_SCALE = 'rockDispatch_scaleTickets_v1';
     const STORAGE_ORDERS = 'rockDispatch_dailyOrders_v1';
+    const STORAGE_SALES_ORDERS = 'rockDispatch_salesOrders_v1';
 
     function seedLocalBaseTemplates() {
       return structuredClone(baseTemplates).map((b) => ({
@@ -149,7 +93,7 @@ const baseTemplates = [
       searchQuery: '',
       saved: new Set(),
       builderLines: [],
-      currentView: 'loadsView',
+      currentView: 'ordersView',
       currentDetailId: null,
       authMode: 'login',
       user: null,
@@ -160,8 +104,21 @@ const baseTemplates = [
       scaleTickets: [],
       dailyOrders: [],
       deskDate: '',
-      calendarView: { y: new Date().getFullYear(), m: new Date().getMonth() }
+      calendarView: { y: new Date().getFullYear(), m: new Date().getMonth() },
+      ordersBoardDate: '',
+      ordersCalendarView: { y: new Date().getFullYear(), m: new Date().getMonth() },
+      ordersCalendarCollapsed: false,
+      salesOrders: []
     };
+
+    (function initOrdersBoardDefaults() {
+      const t = new Date();
+      const y = t.getFullYear();
+      const m = String(t.getMonth() + 1).padStart(2, '0');
+      const d = String(t.getDate()).padStart(2, '0');
+      state.ordersBoardDate = `${y}-${m}-${d}`;
+      state.ordersCalendarView = { y: t.getFullYear(), m: t.getMonth() };
+    })();
 
     function templateOwnerId(t) {
       if (t.userId != null) return t.userId;
@@ -264,6 +221,10 @@ function resetStateAfterSignOut() {
   state.issuedQuotes = [];
   state.scaleTickets = [];
   state.dailyOrders = [];
+  state.salesOrders = [];
+  try {
+    localStorage.setItem(STORAGE_SALES_ORDERS, '[]');
+  } catch (e) {}
   state.builderLines = [];
   state.user = null;
   state.session = null;
@@ -621,6 +582,210 @@ function onAuthNavClick() {
       renderMiniCalendar();
     }
 
+    function loadSalesOrdersStorage() {
+      try {
+        const raw = localStorage.getItem(STORAGE_SALES_ORDERS);
+        if (raw) state.salesOrders = JSON.parse(raw);
+      } catch (e) {}
+    }
+
+    function persistSalesOrders() {
+      try {
+        localStorage.setItem(STORAGE_SALES_ORDERS, JSON.stringify(state.salesOrders));
+      } catch (e) {}
+    }
+
+    function dayHasSalesOrders(iso) {
+      return state.salesOrders.some((o) => o.date === iso);
+    }
+
+    function setOrdersBoardDate(iso) {
+      if (!iso) return;
+      state.ordersBoardDate = iso;
+      const d = parseISODateLocal(iso);
+      state.ordersCalendarView = { y: d.getFullYear(), m: d.getMonth() };
+      const picker = el('ordersDatePicker');
+      if (picker) picker.value = iso;
+      renderOrdersPage();
+    }
+
+    function ordersGoToToday() {
+      setOrdersBoardDate(isoFromDate(new Date()));
+    }
+
+    function ordersMonthNav(delta) {
+      let y = state.ordersCalendarView.y;
+      let m = state.ordersCalendarView.m + delta;
+      if (m < 0) {
+        m = 11;
+        y -= 1;
+      }
+      if (m > 11) {
+        m = 0;
+        y += 1;
+      }
+      state.ordersCalendarView = { y, m };
+      renderOrdersCalendar();
+    }
+
+    function toggleOrdersCalendarPanel() {
+      state.ordersCalendarCollapsed = !state.ordersCalendarCollapsed;
+      const aside = el('ordersCalendarAside');
+      const btn = el('ordersCalToggle');
+      const inner = el('ordersCalInner');
+      if (aside) aside.classList.toggle('collapsed', state.ordersCalendarCollapsed);
+      if (btn) {
+        btn.textContent = state.ordersCalendarCollapsed ? 'Show calendar' : 'Hide calendar';
+        btn.setAttribute('aria-expanded', String(!state.ordersCalendarCollapsed));
+      }
+      if (inner) inner.hidden = state.ordersCalendarCollapsed;
+    }
+
+    function clearSalesOrderForm() {
+      const a = el('soAccount');
+      const n = el('soName');
+      const p = el('soPhone');
+      const ad = el('soAddress');
+      const no = el('soNotes');
+      if (a) a.value = '';
+      if (n) n.value = '';
+      if (p) p.value = '';
+      if (ad) ad.value = '';
+      if (no) no.value = '';
+    }
+
+    function addSalesOrder() {
+      const account = el('soAccount')?.value.trim() ?? '';
+      const name = el('soName')?.value.trim() ?? '';
+      const phone = el('soPhone')?.value.trim() ?? '';
+      const address = el('soAddress')?.value.trim() ?? '';
+      const notes = el('soNotes')?.value.trim() ?? '';
+      if (!name && !account && !address) {
+        showToast('Enter at least customer name, account, or jobsite.');
+        return;
+      }
+      const row = {
+        id: `SO-${Date.now()}`,
+        date: state.ordersBoardDate,
+        customerAccount: account,
+        customerName: name,
+        customerPhone: phone,
+        jobsiteAddress: address,
+        notes
+      };
+      state.salesOrders.unshift(row);
+      persistSalesOrders();
+      clearSalesOrderForm();
+      renderOrdersPage();
+      showToast('Order added.');
+    }
+
+    function removeSalesOrder(id) {
+      state.salesOrders = state.salesOrders.filter((o) => o.id !== id);
+      persistSalesOrders();
+      renderOrdersPage();
+    }
+
+    function renderOrdersCalendar() {
+      const host = el('ordersMiniCalendarHost');
+      if (!host) return;
+
+      const { y, m } = state.ordersCalendarView;
+      const first = new Date(y, m, 1);
+      const startPad = first.getDay();
+      const daysInMonth = new Date(y, m + 1, 0).getDate();
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+      const todayIso = isoFromDate(new Date());
+
+      const cells = [];
+      for (let i = 0; i < startPad; i++) {
+        cells.push('<button type="button" class="cal-day" disabled aria-hidden="true">&nbsp;</button>');
+      }
+      for (let d = 1; d <= daysInMonth; d++) {
+        const iso = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const isSel = iso === state.ordersBoardDate;
+        const isToday = iso === todayIso;
+        const has = dayHasSalesOrders(iso);
+        const cls = ['cal-day'];
+        if (isSel) cls.push('selected');
+        if (isToday) cls.push('today');
+        cells.push(
+          `<button type="button" class="${cls.join(' ')}" onclick="setOrdersBoardDate('${iso}')">${d}${has ? '<span class="cal-dot"></span>' : '<span class="cal-dot" style="opacity:0;"></span>'}</button>`
+        );
+      }
+
+      host.innerHTML = `
+        <div class="mini-cal-head">
+          <button type="button" class="cal-nav" onclick="ordersMonthNav(-1)" aria-label="Previous month">‹</button>
+          <strong>${monthNames[m]} ${y}</strong>
+          <button type="button" class="cal-nav" onclick="ordersMonthNav(1)" aria-label="Next month">›</button>
+        </div>
+        <div class="cal-weekdays"><span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span></div>
+        <div class="cal-days">${cells.join('')}</div>
+      `;
+    }
+
+    function renderSalesOrdersList() {
+      const wrap = el('salesOrdersList');
+      if (!wrap || !state.ordersBoardDate) return;
+
+      const rows = state.salesOrders.filter((o) => o.date === state.ordersBoardDate);
+      const pretty = parseISODateLocal(state.ordersBoardDate).toLocaleDateString(undefined, {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric'
+      });
+      const listLabel = el('ordersListDateLabel');
+      const selLabel = el('ordersSelectedDateLabel');
+      if (listLabel) listLabel.textContent = pretty;
+      if (selLabel) selLabel.textContent = pretty;
+
+      if (!rows.length) {
+        wrap.innerHTML = '<div class="empty-state">No orders for this day yet.</div>';
+        return;
+      }
+      wrap.innerHTML = '';
+      rows.forEach((o) => {
+        const card = document.createElement('div');
+        card.className = 'sales-order-card panel box';
+        const acct = o.customerAccount
+          ? `<div><span class="lbl">Account</span> ${escapeHtml(o.customerAccount)}</div>`
+          : '';
+        const phone = o.customerPhone
+          ? `<div><span class="lbl">Phone</span> ${escapeHtml(o.customerPhone)}</div>`
+          : '';
+        const addr = o.jobsiteAddress
+          ? `<div class="span-full"><span class="lbl">Jobsite</span> ${escapeHtml(o.jobsiteAddress)}</div>`
+          : '';
+        const noteBlock = o.notes
+          ? `<div class="span-full notes"><span class="lbl">Notes</span> ${escapeHtml(o.notes)}</div>`
+          : '';
+        card.innerHTML = `
+          <div class="sales-order-card-head">
+            <strong>${escapeHtml(o.customerName || '—')}</strong>
+            <button type="button" class="ghost-btn mini-remove">Remove</button>
+          </div>
+          <div class="sales-order-meta">
+            ${acct}
+            ${phone}
+            ${addr}
+            ${noteBlock}
+          </div>
+        `;
+        card.querySelector('.mini-remove').onclick = () => removeSalesOrder(o.id);
+        wrap.appendChild(card);
+      });
+    }
+
+    function renderOrdersPage() {
+      if (!el('salesOrdersList')) return;
+      const picker = el('ordersDatePicker');
+      if (picker && state.ordersBoardDate) picker.value = state.ordersBoardDate;
+      renderSalesOrdersList();
+      renderOrdersCalendar();
+    }
+
     function clearScaleForm() {
       el('scaleTruck').value = '';
       el('scaleTicket').value = '';
@@ -833,7 +998,7 @@ function onAuthNavClick() {
 
     function parsePath(pathname) {
       const raw = pathname.replace(/\/$/, '') || '/';
-      if (raw === '/' || raw === '/loads') return { page: 'loads' };
+      if (raw === '/' || raw === '/loads' || raw === '/orders') return { page: 'orders' };
       if (raw === '/desk') return { page: 'desk' };
       if (raw === '/ops') return { page: 'ops' };
       if (raw === '/builder') return { page: 'builder' };
@@ -843,19 +1008,20 @@ function onAuthNavClick() {
         try {
           tid = decodeURIComponent(tid);
         } catch {
-          return { page: 'loads' };
+          return { page: 'orders' };
         }
         return { page: 'detail', tid };
       }
-      return { page: 'loads' };
+      return { page: 'orders' };
     }
 
     function updateNavActive(pathname) {
       const p = pathname.replace(/\/$/, '') || '/';
       document.querySelectorAll('a[data-route]').forEach((a) => {
         const href = (a.getAttribute('href') || '').replace(/\/$/, '') || '/';
-        const loadsHome = (p === '/' || p === '/loads') && href === '/';
-        const active = p === href || loadsHome;
+        const ordersHome =
+          (p === '/' || p === '/loads' || p === '/orders') && href === '/';
+        const active = p === href || ordersHome;
         if (active) a.setAttribute('aria-current', 'page');
         else a.removeAttribute('aria-current');
       });
@@ -866,7 +1032,7 @@ function onAuthNavClick() {
       const normalized = pathname.replace(/\/$/, '') || '/';
       const known =
         normalized === '/' ||
-        ['/desk', '/loads', '/ops', '/builder', '/admin'].includes(normalized) ||
+        ['/desk', '/loads', '/orders', '/ops', '/builder', '/admin'].includes(normalized) ||
         normalized.startsWith('/load/');
       if (!known) {
         history.replaceState(null, '', '/');
@@ -898,8 +1064,8 @@ function onAuthNavClick() {
           switchView('deskView');
           updateNavActive('/desk');
           break;
-        case 'loads':
-          switchView('loadsView');
+        case 'orders':
+          switchView('ordersView');
           updateNavActive(window.location.pathname);
           break;
         case 'ops':
@@ -917,7 +1083,7 @@ function onAuthNavClick() {
           updateNavActive('/admin');
           break;
         default:
-          switchView('loadsView');
+          switchView('ordersView');
           updateNavActive('/');
       }
     }
@@ -982,6 +1148,7 @@ function onAuthNavClick() {
 
     function renderFeedTabs() {
       const container = el('feedTabs');
+      if (!container) return;
       container.innerHTML = '';
       state.feedTabs.forEach((tab) => {
         const btn = document.createElement('button');
@@ -999,6 +1166,7 @@ function onAuthNavClick() {
 
     function renderFilters() {
       const filtersEl = el('filters');
+      if (!filtersEl) return;
       filtersEl.innerHTML = '';
       state.filters.forEach((filter) => {
         const btn = document.createElement('button');
@@ -1033,6 +1201,7 @@ function onAuthNavClick() {
 
     function renderTemplates() {
       const gridEl = el('templateGrid');
+      if (!gridEl) return;
       gridEl.innerHTML = '';
       const items = getFilteredTemplates();
 
@@ -1498,19 +1667,31 @@ function onAuthNavClick() {
       renderTemplates();
       renderStories();
       renderDesk();
+      renderOrdersPage();
       updateBuilderBadge();
     }
 
-    el('searchInput').addEventListener('input', (e) => {
-      state.searchQuery = e.target.value;
-      renderTemplates();
-    });
+    const searchInputEl = el('searchInput');
+    if (searchInputEl) {
+      searchInputEl.addEventListener('input', (e) => {
+        state.searchQuery = e.target.value;
+        renderTemplates();
+      });
+    }
 
     const deskPicker = el('deskDatePicker');
     if (deskPicker) {
       deskPicker.addEventListener('change', (e) => {
         const v = e.target.value;
         if (v) setDeskDate(v);
+      });
+    }
+
+    const ordersPicker = el('ordersDatePicker');
+    if (ordersPicker) {
+      ordersPicker.addEventListener('change', (e) => {
+        const v = e.target.value;
+        if (v) setOrdersBoardDate(v);
       });
     }
 
@@ -1524,6 +1705,12 @@ function onAuthNavClick() {
       toggleAuth,
       onAuthNavClick,
       deskGoToToday,
+      setOrdersBoardDate,
+      ordersGoToToday,
+      ordersMonthNav,
+      toggleOrdersCalendarPanel,
+      addSalesOrder,
+      clearSalesOrderForm,
       addScaleTicket,
       clearScaleForm,
       addDailyOrder,
@@ -1546,6 +1733,7 @@ function onAuthNavClick() {
 
       if (!initSupabase()) {
         loadDeskStorage();
+        loadSalesOrdersStorage();
         seedDeskIfEmpty();
         updateAuthNav();
         initRouter();
@@ -1560,6 +1748,7 @@ function onAuthNavClick() {
         if (event === 'SIGNED_OUT') {
           resetStateAfterSignOut();
           loadDeskStorage();
+          loadSalesOrdersStorage();
           seedDeskIfEmpty();
           updateAuthNav();
           toggleAuth(true);
@@ -1596,15 +1785,18 @@ function onAuthNavClick() {
         try {
           await loadCloudData();
           persistDesk();
+          loadSalesOrdersStorage();
         } catch (err) {
           console.error(err);
           showToast('Could not load Supabase — using saved browser data.');
           loadDeskStorage();
+          loadSalesOrdersStorage();
           seedDeskIfEmpty();
         }
       } else {
         resetStateAfterSignOut();
         loadDeskStorage();
+        loadSalesOrdersStorage();
         seedDeskIfEmpty();
         toggleAuth(true);
         setAuthModalDismissable(false);

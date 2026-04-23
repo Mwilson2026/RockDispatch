@@ -21,7 +21,7 @@
       </div>
 
       <nav class="nav-links">
-        <a href="/" data-route>Loads</a>
+        <a href="/" data-route>Orders</a>
         <a href="/desk" data-route>Scale desk</a>
         <a href="/ops" data-route>Ops desk</a>
         <a href="/admin" data-route>Admin</a>
@@ -128,24 +128,55 @@
         </section>
       </section>
 
-      <section id="loadsView" class="view active">
-        <section class="section" id="loads">
-          <div class="section-top">
-            <div>
-              <div class="section-label">Dispatch board</div>
-              <h2>Active load templates &amp; haul jobs</h2>
-            </div>
-            <div class="tabs" id="feedTabs"></div>
-          </div>
+      <section id="ordersView" class="view active">
+        <section class="section orders-board-section">
+          <div class="orders-layout">
+            <div class="orders-main">
+              <div class="section-top">
+                <div>
+                  <div class="section-label">Orders</div>
+                  <h2>Daily customer orders</h2>
+                  <p style="color: var(--muted); margin-top: 10px; font-size: 14px; max-width: 640px;">Choose a date on the calendar (right), then enter each job. Data is saved in this browser until you connect sync.</p>
+                </div>
+              </div>
 
-          <div class="filters-row">
-            <div class="filters" id="filters"></div>
-            <div class="search-wrap">
-              <input type="search" id="searchInput" placeholder="Search jobs, pits, customers, materials, status" autocomplete="off" />
-            </div>
-          </div>
+              <div class="orders-date-toolbar">
+                <label class="section-label" for="ordersDatePicker">Working date</label>
+                <input type="date" id="ordersDatePicker" />
+                <button type="button" class="ghost-btn" onclick="ordersGoToToday()">Today</button>
+              </div>
+              <p class="orders-date-heading" id="ordersSelectedDateLabel"></p>
 
-          <div class="cards-grid" id="templateGrid"></div>
+              <div class="panel box orders-form-panel">
+                <h3>New order</h3>
+                <div class="field-grid-orders">
+                  <input id="soAccount" placeholder="Customer account #" autocomplete="off" />
+                  <input id="soName" placeholder="Customer name" autocomplete="off" />
+                  <input id="soPhone" type="tel" placeholder="Customer phone" autocomplete="tel" />
+                  <input id="soAddress" class="span-2" placeholder="Jobsite address" autocomplete="street-address" />
+                  <textarea id="soNotes" class="span-2" placeholder="Order notes — material, tons, timing, special instructions…" rows="3"></textarea>
+                </div>
+                <div class="action-row" style="margin-top: 14px;">
+                  <button type="button" class="primary-btn" onclick="addSalesOrder()">Add order</button>
+                  <button type="button" class="ghost-btn" onclick="clearSalesOrderForm()">Clear form</button>
+                </div>
+              </div>
+
+              <div class="orders-list-wrap">
+                <h3 style="margin-bottom: 14px;">Orders for <span id="ordersListDateLabel">this day</span></h3>
+                <div id="salesOrdersList" class="sales-orders-list"></div>
+              </div>
+            </div>
+
+            <aside class="orders-calendar-aside" id="ordersCalendarAside">
+              <div class="orders-cal-toggle-row">
+                <button type="button" class="ghost-btn orders-cal-toggle" id="ordersCalToggle" onclick="toggleOrdersCalendarPanel()" aria-expanded="true">Hide calendar</button>
+              </div>
+              <div class="orders-cal-inner" id="ordersCalInner">
+                <div id="ordersMiniCalendarHost" class="mini-cal-host" aria-label="Select order date"></div>
+              </div>
+            </aside>
+          </div>
         </section>
       </section>
 
@@ -168,7 +199,7 @@
             <div class="section-label">Load plan</div>
             <h2 id="detailHeader">Overview</h2>
           </div>
-          <button type="button" class="ghost-btn" onclick="navigate('/loads')">Back to loads</button>
+          <button type="button" class="ghost-btn" onclick="navigate('/')">Back to orders</button>
         </div>
 
         <div class="detail-grid">
