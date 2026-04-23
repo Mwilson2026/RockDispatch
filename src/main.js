@@ -132,8 +132,16 @@ const baseTemplates = [
     const STORAGE_SCALE = 'rockDispatch_scaleTickets_v1';
     const STORAGE_ORDERS = 'rockDispatch_dailyOrders_v1';
 
+    function seedLocalBaseTemplates() {
+      return structuredClone(baseTemplates).map((b) => ({
+        ...b,
+        userId: null,
+        tid: `base:${b.id}`
+      }));
+    }
+
     const state = {
-      templates: structuredClone(baseTemplates),
+      templates: seedLocalBaseTemplates(),
       filters: ['All', 'Base', 'Concrete', 'Equipment', 'Rip rap', 'Excavation', 'Service'],
       feedTab: 'All loads',
       feedTabs: ['All loads', 'Drafts', 'Pinned'],
@@ -146,12 +154,42 @@ const baseTemplates = [
       authMode: 'login',
       user: null,
       session: null,
+      role: 'user',
+      isAdmin: false,
       issuedQuotes: [],
       scaleTickets: [],
       dailyOrders: [],
       deskDate: '',
       calendarView: { y: new Date().getFullYear(), m: new Date().getMonth() }
     };
+
+    function templateOwnerId(t) {
+      if (t.userId != null) return t.userId;
+      return state.session?.user?.id || null;
+    }
+
+    function pinKeyForTemplate(t) {
+      const owner = templateOwnerId(t);
+      if (owner == null || t.id == null) return null;
+      return `${owner}:${t.id}`;
+    }
+
+    async function fetchUserProfile() {
+      state.role = 'user';
+      state.isAdmin = false;
+      if (!supabaseClient || !state.session?.user?.id) return;
+      const { data, error } = await supabaseClient
+        .from('profiles')
+        .select('role')
+        .eq('id', state.session.user.id)
+        .maybeSingle();
+      if (error) {
+        console.error(error);
+        return;
+      }
+      state.role = data?.role === 'admin' ? 'admin' : 'user';
+      state.isAdmin = state.role === 'admin';
+    }
 
     const el = (id) => document.getElementById(id);
 
@@ -188,14 +226,15 @@ function updateAuthNav() {
   }
   if (state.session?.user) {
     const email = state.session.user.email || '';
-    btn.textContent = email ? email.split('@')[0] : 'Signed in';
+    const prefix = email ? email.split('@')[0] : 'Signed in';
+    btn.textContent = state.isAdmin ? `${prefix} · Admin` : prefix;
   } else {
     btn.textContent = 'Login';
   }
 }
 
 function resetStateAfterSignOut() {
-  state.templates = structuredClone(baseTemplates);
+  state.templates = seedLocalBaseTemplates();
   state.saved = new Set();
   state.issuedQuotes = [];
   state.scaleTickets = [];
@@ -203,6 +242,8 @@ function resetStateAfterSignOut() {
   state.builderLines = [];
   state.user = null;
   state.session = null;
+  state.role = 'user';
+  state.isAdmin = false;
   switchView('homeView');
 }
 
@@ -322,8 +363,11 @@ function onAuthNavClick() {
     function mapTemplateFromDb(row) {
       const specs = row.specs;
       const lineItems = row.line_items;
+      const uid = row.user_id;
       return {
         id: row.id,
+        userId: uid,
+        tid: `${uid}:${row.id}`,
         name: row.name,
         category: row.category,
         amount: Number(row.amount),
@@ -340,7 +384,8 @@ function onAuthNavClick() {
     }
 
     function mapTemplateToDb(t) {
-      return {
+      const uid = t.userId ?? state.session?.user?.id;
+      const row = {
         id: t.id,
         name: t.name,
         category: t.category,
@@ -355,14 +400,40 @@ function onAuthNavClick() {
         specs: t.specs,
         line_items: t.lineItems
       };
+      if (uid) row.user_id = uid;
+      return row;
     }
 
     function mergeTemplatesFromDb(rows) {
-      if (!rows || !rows.length) return;
-      const fromDb = new Map(rows.map((r) => [r.id, mapTemplateFromDb(r)]));
-      const merged = structuredClone(baseTemplates).map((t) => (fromDb.has(t.id) ? fromDb.get(t.id) : t));
-      for (const [id, t] of fromDb) {
-        if (!merged.some((x) => x.id === id)) merged.push(t);
+      const uid = state.session?.user?.id;
+      if (!uid) return;
+
+      if (state.isAdmin && rows && rows.length) {
+        const mapped = rows.map(mapTemplateFromDb).sort((a, b) => b.id - a.id);
+        const bases = seedLocalBaseTemplates();
+        state.templates = [...bases, ...mapped];
+        return;
+      }
+
+      if (!rows || !rows.length) {
+        state.templates = seedLocalBaseTemplates();
+        return;
+      }
+
+      const ownRows = rows.filter((r) => r.user_id === uid);
+      const fromDb = new Map(ownRows.map((r) => [r.id, mapTemplateFromDb(r)]));
+      const merged = structuredClone(baseTemplates).map((base) => {
+        if (fromDb.has(base.id)) {
+          return fromDb.get(base.id);
+        }
+        return {
+          ...base,
+          userId: null,
+          tid: `base:${base.id}`
+        };
+      });
+      for (const [, t] of fromDb) {
+        if (!merged.some((x) => x.id === t.id)) merged.push(t);
       }
       merged.sort((a, b) => b.id - a.id);
       state.templates = merged;
@@ -406,18 +477,28 @@ function onAuthNavClick() {
     }
 
     async function pullPinsFromSupabase() {
-      const { data, error } = await supabaseClient.from('pinned_template_ids').select('template_id');
+      const { data, error } = await supabaseClient
+        .from('pinned_template_ids')
+        .select('template_id, template_owner_id');
       if (error) throw error;
-      state.saved = new Set((data || []).map((r) => r.template_id));
+      state.saved = new Set(
+        (data || []).map((r) => `${r.template_owner_id}:${r.template_id}`)
+      );
     }
 
-    async function sbSyncPinnedTemplate(templateId, pinned) {
+    async function sbSyncPinnedTemplate(templateId, templateOwnerId, pinned) {
       if (!supabaseClient) return;
       if (pinned) {
-        const { error } = await supabaseClient.from('pinned_template_ids').upsert({ template_id: templateId });
+        const { error } = await supabaseClient
+          .from('pinned_template_ids')
+          .upsert({ template_id: templateId, template_owner_id: templateOwnerId });
         if (error) console.error(error);
       } else {
-        const { error } = await supabaseClient.from('pinned_template_ids').delete().eq('template_id', templateId);
+        const { error } = await supabaseClient
+          .from('pinned_template_ids')
+          .delete()
+          .eq('template_id', templateId)
+          .eq('template_owner_id', templateOwnerId);
         if (error) console.error(error);
       }
     }
@@ -781,7 +862,7 @@ function onAuthNavClick() {
               <div style="color: var(--muted); font-size: 13px;">${template.customer}</div>
               <div style="font-size: 20px; font-weight: 800; margin-top: 5px;">${formatShortMoney(getTemplateTotal(template))}</div>
             </div>
-            <button type="button" class="mini-btn" onclick="openDetail(${template.id})">View</button>
+            <button type="button" class="mini-btn" onclick="openDetail(${JSON.stringify(template.tid)})">View</button>
           </div>
         `;
         promoStack.appendChild(card);
@@ -831,7 +912,10 @@ function onAuthNavClick() {
         const matchesTab =
           state.feedTab === 'All loads' ? true :
           state.feedTab === 'Drafts' ? template.status === 'Draft' :
-          state.saved.has(template.id);
+          (() => {
+            const pk = pinKeyForTemplate(template);
+            return pk ? state.saved.has(pk) : false;
+          })();
         return matchesQuery && matchesFilter && matchesTab;
       });
     }
@@ -864,7 +948,7 @@ function onAuthNavClick() {
           </div>
           <div class="quote-price">${formatMoney(total)}</div>
           <div class="action-row" style="margin-top: 18px;">
-            <button type="button" class="mini-btn" onclick="openDetail(${template.id})">Open</button>
+            <button type="button" class="mini-btn" onclick="openDetail(${JSON.stringify(template.tid)})">Open</button>
             <button type="button" class="ghost-btn" onclick="openBuilder()">Dispatch sheet</button>
           </div>
         `;
@@ -890,8 +974,8 @@ function onAuthNavClick() {
       });
     }
 
-    function getTemplateById(id) {
-      return state.templates.find((t) => t.id === id);
+    function getTemplateById(tid) {
+      return state.templates.find((t) => t.tid === tid);
     }
 
     function renderDetail() {
@@ -942,16 +1026,23 @@ function onAuthNavClick() {
       });
 
       const saveBtn = el('detailSaveBtn');
-      saveBtn.textContent = state.saved.has(template.id) ? 'Unpin' : 'Pin';
+      const pk = pinKeyForTemplate(template);
+      saveBtn.textContent = pk && state.saved.has(pk) ? 'Unpin' : 'Pin';
     }
 
     function toggleSaveCurrentTemplate() {
       const template = getTemplateById(state.currentDetailId);
       if (!template) return;
-      if (state.saved.has(template.id)) state.saved.delete(template.id);
-      else state.saved.add(template.id);
-      const pinned = state.saved.has(template.id);
-      void sbSyncPinnedTemplate(template.id, pinned);
+      const pk = pinKeyForTemplate(template);
+      if (!pk) {
+        showToast('Sign in to pin templates.');
+        return;
+      }
+      if (state.saved.has(pk)) state.saved.delete(pk);
+      else state.saved.add(pk);
+      const pinned = state.saved.has(pk);
+      const owner = templateOwnerId(template);
+      void sbSyncPinnedTemplate(template.id, owner, pinned);
       showToast(pinned ? 'Pinned to your board.' : 'Unpinned.');
       renderDetail();
       renderTemplates();
@@ -1094,6 +1185,10 @@ function onAuthNavClick() {
     }
 
     function createTemplate() {
+      if (!state.session?.user) {
+        showToast('Sign in to publish templates.');
+        return;
+      }
       const name = el('adminName').value.trim();
       if (!name) {
         showToast('Add a template name first.');
@@ -1101,8 +1196,11 @@ function onAuthNavClick() {
       }
       const nextId = Math.max(0, ...state.templates.map((t) => t.id)) + 1;
       const amount = parseFloat(el('adminAmount').value) || 0;
+      const uid = state.session.user.id;
       const template = {
         id: nextId,
+        userId: uid,
+        tid: `${uid}:${nextId}`,
         name,
         category: el('adminCategory').value.trim() || 'Custom',
         amount,
@@ -1341,6 +1439,7 @@ function onAuthNavClick() {
         if (event === 'SIGNED_IN' && session?.user) {
           state.session = session;
           state.user = session.user;
+          await fetchUserProfile();
           updateAuthNav();
           try {
             await loadCloudData();
@@ -1360,6 +1459,7 @@ function onAuthNavClick() {
       if (session?.user) {
         state.session = session;
         state.user = session.user;
+        await fetchUserProfile();
         updateAuthNav();
         try {
           await loadCloudData();

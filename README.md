@@ -27,10 +27,28 @@ With env vars set, the app syncs the **scale desk**, **load templates** (merged 
 ### Authentication (required for cloud sync)
 
 1. Run migration `supabase/migrations/20260425110000_auth_rls.sql` after the earlier migrations. It adds `user_id` to every table, **clears old rows** that had no owner, and replaces open policies with **row-level security** so each user only sees their own data.
-2. In Supabase **Authentication → Providers**, keep **Email** enabled. For development you can turn off **Confirm email** under **Authentication → Providers → Email** so sign-up can sign in immediately.
-3. Sign up or sign in from the app modal. The **Login** button shows your email prefix when signed in; click it to **sign out**. Until you sign in, the modal stays required (no dismiss) when using Supabase.
+2. Run migration `supabase/migrations/20260426120000_admin_profiles.sql`. It adds a **`profiles`** table (`role`: `user` | `admin`), an **`is_admin()`** helper used by RLS, auto-creates a profile row for new sign-ups, extends **pinned** rows with **`template_owner_id`** (so pins stay unique when many users share template ids), and lets **admins** read/update all rows on the app tables.
+3. In Supabase **Authentication → Providers**, keep **Email** enabled. For development you can turn off **Confirm email** under **Authentication → Providers → Email** so sign-up can sign in immediately.
+4. Sign up or sign in from the app modal. The **Login** button shows your email prefix when signed in (**`… · Admin`** when your profile is `admin`); click it to **sign out**. Until you sign in, the modal stays required (no dismiss) when using Supabase.
 
 Without `VITE_SUPABASE_*` env vars, the app stays in **offline** mode (localStorage only, demo login allowed).
+
+### Admin access (full org view in the web app)
+
+There is no safe way to ship a fixed default password in the repo. Create your own operator account and promote it:
+
+1. In Supabase **Authentication → Users**, add a user (email + password) or register from the app.
+2. In **SQL Editor**, grant admin (replace the email):
+
+```sql
+update public.profiles
+set role = 'admin'
+where id = (select id from auth.users where email = 'you@company.com' limit 1);
+```
+
+3. Sign out and sign back in (or refresh). The nav button shows **`… · Admin`** when `role = 'admin'`. Admins see **everyone’s** scale tickets, orders, templates, issued quotes, and pins through RLS; regular users still see only their own rows.
+
+**Security:** keep admin accounts few; only the **anon** key belongs in `VITE_*` env vars—never the service role key in the frontend.
 
 Optional: `npx supabase link` / `npx supabase db push` instead of pasting SQL.
 
