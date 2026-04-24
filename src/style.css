@@ -909,7 +909,7 @@
       display: grid;
       grid-template-columns:
         minmax(0, 0.9fr) minmax(0, 0.4fr) minmax(0, 0.45fr) minmax(0, 0.55fr) minmax(0, 0.85fr) minmax(0, 0.65fr)
-        minmax(0, 0.45fr) minmax(0, 0.35fr) minmax(0, 0.55fr) minmax(0, 0.6fr) minmax(0, 0.5fr) auto;
+        minmax(0, 0.45fr) minmax(0, 0.55fr) minmax(0, 0.6fr) minmax(0, 0.5fr) auto;
       gap: 8px;
       padding: 12px 14px;
       align-items: center;

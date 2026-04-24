@@ -334,52 +334,123 @@ function activeUserLabel() {
 
 function buildScaleTicketPdf(t) {
   const doc = new jsPDF({ unit: 'pt', format: 'letter' });
-  const marginX = 48;
-  let y = 54;
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const marginX = 42;
+  const contentW = pageW - marginX * 2;
+  let y = 40;
 
-  const addLine = (label, value) => {
-    doc.setFont('helvetica', 'bold');
-    doc.text(`${label}:`, marginX, y);
-    doc.setFont('helvetica', 'normal');
-    doc.text(String(value ?? '—'), marginX + 110, y);
-    y += 22;
-  };
-
+  // Header with logo-like mark
+  doc.setDrawColor(35, 35, 35);
+  doc.roundedRect(marginX, y, contentW, 64, 8, 8);
+  doc.setFillColor(15, 15, 15);
+  doc.roundedRect(marginX + 10, y + 10, 44, 44, 8, 8, 'F');
+  doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(20);
-  doc.text('Scale Ticket', marginX, y);
-  y += 26;
-
-  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(22);
+  doc.text('R', marginX + 25, y + 39);
+  doc.setTextColor(0, 0, 0);
+  doc.setFontSize(15);
+  doc.text('American R&C', marginX + 64, y + 27);
   doc.setFontSize(11);
-  doc.text('Rock Dispatch System', marginX, y);
-  y += 28;
-
-  addLine('Ticket #', t.ticket || '—');
-  addLine('Date', t.date || '—');
-  addLine('Time', t.time || '—');
-  addLine('Truck', t.truck || '—');
-  addLine('Material', t.material || '—');
-  addLine('Customer', t.customer || '—');
-  addLine('Job', t.job || '—');
-  addLine(
-    'Total Material Weight',
-    Number.isFinite(Number(t.totalMaterialWeight)) ? Number(t.totalMaterialWeight).toFixed(2) : '—'
-  );
-  addLine('Converted Tons', Number.isFinite(Number(t.netTons)) ? Number(t.netTons).toFixed(3) : '—');
-  addLine('Loads', Number(t.loads) || 0);
-  addLine('Status', t.status || '—');
-  addLine('Entered By', t.enteredBy || '—');
-
-  y += 8;
-  doc.setFont('helvetica', 'bold');
-  doc.text('Notes:', marginX, y);
-  y += 16;
   doc.setFont('helvetica', 'normal');
-  const notes = String(t.notes || '—');
-  const wrapped = doc.splitTextToSize(notes, 500);
-  doc.text(wrapped, marginX, y);
+  doc.text('Signed Scale Ticket Receipt', marginX + 64, y + 44);
+  doc.text(`Ticket: ${String(t.ticket || '—')}`, pageW - marginX - 110, y + 27);
+  doc.text(`Date: ${String(t.date || '—')} ${String(t.time || '')}`.trim(), pageW - marginX - 170, y + 44);
 
+  y += 80;
+
+  // Info rows
+  const info = [
+    ['Truck', t.truck || '—'],
+    ['Customer', t.customer || '—'],
+    ['Job Address', t.job || '—'],
+    ['Material', t.material || '—'],
+    ['Status', t.status || '—'],
+    ['Entered By', t.enteredBy || '—']
+  ];
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  info.forEach(([label, value], idx) => {
+    const col = idx % 2;
+    const row = Math.floor(idx / 2);
+    const x = marginX + col * (contentW / 2);
+    const yy = y + row * 20;
+    doc.text(`${label}:`, x, yy);
+    doc.setFont('helvetica', 'normal');
+    doc.text(String(value), x + 72, yy);
+    doc.setFont('helvetica', 'bold');
+  });
+  y += 72;
+
+  // Ticket detail table
+  const tableY = y;
+  const colX = [marginX, marginX + 220, marginX + 360, marginX + 480];
+  doc.setDrawColor(70, 70, 70);
+  doc.rect(marginX, tableY, contentW, 56);
+  doc.line(marginX, tableY + 24, marginX + contentW, tableY + 24);
+  doc.line(colX[1], tableY, colX[1], tableY + 56);
+  doc.line(colX[2], tableY, colX[2], tableY + 56);
+  doc.line(colX[3], tableY, colX[3], tableY + 56);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Field', marginX + 8, tableY + 16);
+  doc.text('Total Material Weight', colX[1] + 8, tableY + 16);
+  doc.text('Converted Tons', colX[2] + 8, tableY + 16);
+  doc.text('Ticket #', colX[3] + 8, tableY + 16);
+  doc.setFont('helvetica', 'normal');
+  doc.text(String(t.material || '—'), marginX + 8, tableY + 42);
+  doc.text(
+    Number.isFinite(Number(t.totalMaterialWeight)) ? Number(t.totalMaterialWeight).toFixed(2) : '—',
+    colX[1] + 8,
+    tableY + 42
+  );
+  doc.text(
+    Number.isFinite(Number(t.netTons)) ? Number(t.netTons).toFixed(3) : '—',
+    colX[2] + 8,
+    tableY + 42
+  );
+  doc.text(String(t.ticket || '—'), colX[3] + 8, tableY + 42);
+
+  y += 74;
+
+  // Notes
+  doc.setFont('helvetica', 'bold');
+  doc.text('Notes', marginX, y);
+  y += 10;
+  doc.setFont('helvetica', 'normal');
+  doc.rect(marginX, y, contentW, 44);
+  const notesText = doc.splitTextToSize(String(t.notes || '—'), contentW - 12);
+  doc.text(notesText, marginX + 6, y + 16);
+  y += 60;
+
+  // Signature line
+  doc.setFont('helvetica', 'bold');
+  doc.text('CUSTOMER SIGNATURE', marginX, y);
+  doc.line(marginX + 132, y + 1, pageW - marginX, y + 1);
+  y += 24;
+
+  // Footer disclaimers
+  const disclaimerBlocks = [
+    'THIS RECEIPT IS PURELY A BILL OF LADING AND IS NOT AN OFFICIAL INVOICE. AN OFFICIAL INVOICE WILL FOLLOW.',
+    'NOTICE TO OWNER: FAILURE OF THIS CONTRACTOR TO PAY THOSE PERSONS SUPPLYING MATERIAL OR SERVICES TO COMPLETE THIS CONTRACT CAN RESULT IN THE FILING OF A MECHANIC\'S LIEN ON THE PROPERTY. YOU MAY REQUEST LIEN WAIVERS FROM ALL PERSONS SUPPLYING MATERIAL OR SERVICES.',
+    'NOTICE TO CUSTOMER: WHEN MATERIAL IS PICKED UP BY THE CUSTOMER OR DELIVERY IS ARRANGED, TITLE PASSES AT THE QUARRY. DELIVERY BEYOND THE CURB IS AT CUSTOMER RISK FOR ANY DAMAGE TO SIDEWALKS, DRIVEWAYS, OR PROPERTY.',
+    'NOTICE: THE CARRIER/CUSTOMER INVOLVED IN THE TRANSPORTATION OR HAULING OF MATERIAL IS AN INDEPENDENT ENTITY AND NOT AN EMPLOYEE, AGENT, OR REPRESENTATIVE OF AMERICAN R & C LLC. CARRIER/CUSTOMER AGREES TO HOLD AMERICAN R & C LLC HARMLESS FROM RELATED CLAIMS.'
+  ];
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.3);
+  disclaimerBlocks.forEach((text) => {
+    const lines = doc.splitTextToSize(text, contentW);
+    if (y + lines.length * 10 > pageH - 28) {
+      doc.addPage();
+      y = 40;
+    }
+    doc.text(lines, marginX, y);
+    y += lines.length * 10 + 6;
+  });
+
+  doc.setFontSize(8);
+  doc.text('-- 1 of 1 --', pageW / 2, pageH - 14, { align: 'center' });
   return doc;
 }
 
@@ -1783,7 +1854,6 @@ async function signOutUser() {
       if (tonsEl) tonsEl.value = '';
       el('scaleMaterial').value = '';
       el('scaleJob').value = '';
-      el('scaleLoads').value = '';
       const st = el('scaleStatus');
       if (st) st.value = 'Scheduled';
       el('scaleNotes').value = '';
@@ -1853,7 +1923,7 @@ async function signOutUser() {
         customer,
         job: el('scaleJob').value.trim() || '—',
         tonsOrdered: 0,
-        loads: parseInt(el('scaleLoads').value, 10) || 0,
+        loads: 0,
         status: el('scaleStatus').value,
         enteredBy: activeUserLabel()
       };
@@ -1936,7 +2006,6 @@ async function signOutUser() {
           <div title="${cust}">${cust}</div>
           <div title="${job}">${job}</div>
           <div>${t.tonsOrdered != null && !Number.isNaN(Number(t.tonsOrdered)) ? Number(t.tonsOrdered).toFixed(1) : '—'}</div>
-          <div>${Number(t.loads) || 0}</div>
           <div>${st}</div>
           <div title="${by}">${by}</div>
           <div>${escapeHtml(String(t.time))}</div>
