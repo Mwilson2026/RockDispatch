@@ -147,18 +147,35 @@ const baseTemplates = [
       state.isAdmin = false;
       state.profileDisplayName = null;
       if (!supabaseClient || !state.session?.user?.id) return;
-      const { data, error } = await supabaseClient
+      const uid = state.session.user.id;
+
+      let { data, error } = await supabaseClient
         .from('profiles')
         .select('role, display_name')
-        .eq('id', state.session.user.id)
+        .eq('id', uid)
         .maybeSingle();
+
       if (error) {
-        console.error(error);
-        return;
+        const msg = String(error.message || error.code || '');
+        if (/display_name|column|schema/i.test(msg)) {
+          const fb = await supabaseClient.from('profiles').select('role').eq('id', uid).maybeSingle();
+          if (fb.error) {
+            console.error(fb.error);
+            return;
+          }
+          data = fb.data;
+          error = null;
+        } else {
+          console.error(error);
+          return;
+        }
       }
-      state.role = data?.role === 'admin' ? 'admin' : 'user';
+
+      if (!data) return;
+
+      state.role = data.role === 'admin' ? 'admin' : 'user';
       state.isAdmin = state.role === 'admin';
-      const dn = data?.display_name;
+      const dn = data.display_name;
       state.profileDisplayName = typeof dn === 'string' && dn.trim() ? dn.trim() : null;
     }
 
@@ -245,40 +262,25 @@ function setAuthModalDismissable(dismissable) {
   if (cancelBtn) cancelBtn.style.display = dismissable ? '' : 'none';
 }
 
-/** Prefer profile-style name from auth metadata; never show full email in the nav. */
-function humanizeEmailLocalPart(local) {
-  const raw = String(local || '').trim();
-  if (!raw) return '';
-  const cleaned = raw.replace(/[._]+/g, ' ').trim();
-  if (!cleaned) return raw;
-  return cleaned
-    .split(/\s+/)
-    .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : ''))
-    .filter(Boolean)
-    .join(' ');
-}
-
-/** Fallback display string when profiles.display_name is empty (no "Hi" prefix). */
-function fallbackPersonName(user) {
-  if (!user) return '';
-  const meta = user.user_metadata || {};
-  const fromMeta = String(meta.full_name || meta.username || meta.name || meta.display_name || '').trim();
-  if (fromMeta) return fromMeta;
-  const email = String(user.email || '').trim();
-  if (!email) return '';
-  const local = email.includes('@') ? email.split('@')[0] : email;
-  const humanized = humanizeEmailLocalPart(local);
-  return humanized || '';
-}
-
-/** Nav label: Hi + name from profile row, then metadata/email local part. Admins get · Admin suffix. */
+/** Header greeting: Settings → Name tab only (profiles.display_name). Never shows login email or username. */
 function navAccountGreeting(user) {
   if (!user) return 'Hi';
-  const fromProfile = state.profileDisplayName?.trim();
-  const fallback = fallbackPersonName(user);
-  const name = fromProfile || fallback;
+  const name = state.profileDisplayName?.trim();
   const hi = name ? `Hi, ${name}` : 'Hi';
   return state.isAdmin ? `${hi} · Admin` : hi;
+}
+
+function updateDashboardGreeting() {
+  const greet = el('homeDashboardGreeting');
+  if (!greet) return;
+  if (!supabaseClient || !state.session?.user) {
+    greet.hidden = true;
+    greet.textContent = '';
+    return;
+  }
+  greet.hidden = false;
+  const name = state.profileDisplayName?.trim();
+  greet.textContent = name ? `Hi, ${name}` : 'Hi';
 }
 
 function closeNavUserDropdown() {
@@ -334,6 +336,7 @@ function updateAuthNav() {
     }
     if (userRoot) userRoot.hidden = true;
     closeNavUserDropdown();
+    updateDashboardGreeting();
     return;
   }
   if (state.session?.user) {
@@ -349,6 +352,7 @@ function updateAuthNav() {
     if (userRoot) userRoot.hidden = true;
     closeNavUserDropdown();
   }
+  updateDashboardGreeting();
 }
 
 function resetStateAfterSignOut() {
@@ -813,12 +817,71 @@ async function signOutUser() {
     function renderSettingsPage() {
       if (!el('settingsPanelAppearance')) return;
       syncThemeRadios();
+
+      const hasCloud = !!supabaseClient;
+      const loggedIn = !!(state.session?.user);
+
+      const offline = el('settingsProfileOffline');
+      const signedOut = el('settingsProfileSignedOut');
+      const signedIn = el('settingsProfileSignedIn');
+      const emailEl = el('settingsEmailDisplay');
+      if (offline) offline.hidden = hasCloud;
+      if (signedOut) signedOut.hidden = !hasCloud || loggedIn;
+      if (signedIn) signedIn.hidden = !hasCloud || !loggedIn;
+      if (loggedIn && emailEl) {
+        emailEl.textContent = state.session.user.email || '—';
+      }
+
+      const noff = el('settingsNameOffline');
+      const nsignout = el('settingsNameSignedOut');
+      const nsignin = el('settingsNameSignedIn');
+      const nameInp = el('settingsDisplayNameInput');
+      const preview = el('settingsNamePreview');
+      if (noff) noff.hidden = hasCloud;
+      if (nsignout) nsignout.hidden = !hasCloud || loggedIn;
+      if (nsignin) nsignin.hidden = !hasCloud || !loggedIn;
+      if (loggedIn && nameInp && document.activeElement !== nameInp) {
+        nameInp.value = state.profileDisplayName ?? '';
+      }
+      if (preview && loggedIn) {
+        const raw = (nameInp?.value ?? '').trim();
+        const show = raw || state.profileDisplayName?.trim();
+        preview.textContent = show
+          ? `Home page & header will show: Hi, ${show}`
+          : 'Home page & header will show: Hi — add a name above.';
+      }
+
       const adminBlk = el('settingsAccountsAdminBlock');
       const locked = el('settingsAccountsLocked');
       const canManage = !!state.isAdmin;
       if (adminBlk) adminBlk.hidden = !canManage;
       if (locked) locked.hidden = canManage;
       if (canManage) renderCustomerAccountsList();
+    }
+
+    async function saveProfileDisplayName() {
+      if (!supabaseClient || !state.session?.user?.id) {
+        showToast('Sign in to save your name.');
+        return;
+      }
+      const inp = el('settingsDisplayNameInput');
+      const raw = (inp?.value ?? '').trim();
+      const display_name = raw.length ? raw : null;
+      const { error } = await supabaseClient
+        .from('profiles')
+        .update({ display_name })
+        .eq('id', state.session.user.id);
+      if (error) {
+        console.error(error);
+        showToast(
+          error.message +
+            (/display_name|column/i.test(error.message) ? ' Run the profiles migration (display_name) in Supabase.' : '')
+        );
+        return;
+      }
+      state.profileDisplayName = display_name;
+      updateAuthNav();
+      showToast('Name saved.');
     }
 
     function renderCustomerAccountsList() {
@@ -900,6 +963,8 @@ async function signOutUser() {
     }
 
     function showSettingsSection(panel) {
+      const prof = el('settingsPanelProfile');
+      const namePan = el('settingsPanelName');
       const app = el('settingsPanelAppearance');
       const acc = el('settingsPanelAccounts');
       const navBtns = document.querySelectorAll('.settings-nav-btn');
@@ -907,11 +972,11 @@ async function signOutUser() {
         const active = b.dataset.settingsPanel === panel;
         b.classList.toggle('active', active);
       });
-      if (app) {
-        app.hidden = panel !== 'appearance';
-      }
+      if (prof) prof.hidden = panel !== 'profile';
+      if (namePan) namePan.hidden = panel !== 'name';
+      if (app) app.hidden = panel !== 'appearance';
       if (acc) acc.hidden = panel !== 'accounts';
-      if (panel === 'accounts') renderSettingsPage();
+      if (panel === 'accounts' || panel === 'profile' || panel === 'name') renderSettingsPage();
     }
 
     let settingsUiInitialized = false;
@@ -926,6 +991,11 @@ async function signOutUser() {
           if (r.checked) setTheme(r.value);
         });
       });
+      const nameInp = el('settingsDisplayNameInput');
+      if (nameInp && !nameInp.dataset.livePreview) {
+        nameInp.dataset.livePreview = '1';
+        nameInp.addEventListener('input', () => renderSettingsPage());
+      }
     }
 
     function dayHasSalesOrders(iso) {
@@ -1340,6 +1410,7 @@ async function signOutUser() {
       if (node) node.classList.add('active');
       state.currentView = viewId;
       window.scrollTo({ top: 0, behavior: 'smooth' });
+      if (viewId === 'homeView') updateDashboardGreeting();
     }
 
     function parsePath(pathname) {
@@ -2012,12 +2083,23 @@ async function signOutUser() {
             options: { data: meta }
           });
           if (error) throw error;
-          if (data.session) {
-            state.session = data.session;
-            state.user = data.session.user;
-            await fetchUserProfile();
+          const session = data?.session ?? null;
+          const user = data?.user ?? session?.user ?? null;
+          if (session && user) {
+            state.session = session;
+            state.user = user;
+            try {
+              await fetchUserProfile();
+            } catch (e) {
+              console.error(e);
+            }
             updateAuthNav();
-            toggleAuth(false);
+            const modal = el('authModal');
+            if (modal) {
+              modal.classList.remove('open');
+              setAuthModalDismissable(true);
+            }
+            applyRouteFromLocation();
             showToast('Account created.');
           } else {
             showToast('Check your email to confirm, then sign in.');
@@ -2030,16 +2112,37 @@ async function signOutUser() {
           }
           const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
           if (error) throw error;
-          if (data.session) {
-            state.session = data.session;
-            state.user = data.session.user;
-            await fetchUserProfile();
-            updateAuthNav();
-            toggleAuth(false);
-            showToast('Signed in.');
-          } else {
-            showToast('Account pending confirmation — check your email, then sign in.');
+
+          let session = data?.session ?? null;
+          let user = data?.user ?? session?.user ?? null;
+          if (!session || !user) {
+            const { data: gs } = await supabaseClient.auth.getSession();
+            session = gs.session ?? null;
+            user = gs.session?.user ?? null;
           }
+
+          if (!session || !user) {
+            showToast('Could not start a session. Confirm your email or try again.');
+            return;
+          }
+
+          state.session = session;
+          state.user = user;
+
+          try {
+            await fetchUserProfile();
+          } catch (e) {
+            console.error(e);
+          }
+          updateAuthNav();
+
+          const modal = el('authModal');
+          if (modal) {
+            modal.classList.remove('open');
+            setAuthModalDismissable(true);
+          }
+          applyRouteFromLocation();
+          showToast('Signed in.');
         }
       } catch (err) {
         const msg = err.message || String(err);
@@ -2132,7 +2235,8 @@ async function signOutUser() {
       signOutUser,
       setTheme,
       selectCustomerAccount,
-      addCustomerAccountFromSettings
+      addCustomerAccountFromSettings,
+      saveProfileDisplayName
     });
 
     (async function bootstrapDesk() {

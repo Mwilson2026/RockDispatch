@@ -62,6 +62,7 @@
           <div class="arc-home__glow arc-home__glow--2" aria-hidden="true"></div>
           <div class="arc-home__inner">
             <p class="arc-home__eyebrow">Aggregate · asphalt · haul</p>
+            <p class="arc-home__dashboard-greet" id="homeDashboardGreeting" hidden></p>
             <h1 class="arc-home__title">
               <span class="arc-home__word arc-home__word--1">American</span>
               <span class="arc-home__amp" aria-hidden="true">&amp;</span>
@@ -393,7 +394,7 @@
             <div>
               <div class="section-label">Settings</div>
               <h2>Preferences</h2>
-              <p style="color: var(--muted); margin-top: 10px; font-size: 14px;">Appearance applies on this device. Customer accounts are managed by administrators.</p>
+              <p style="color: var(--muted); margin-top: 10px; font-size: 14px;"><strong>Profile</strong> shows your login email. <strong>Name</strong> controls the Hi greeting on the home page and header — not your email.</p>
             </div>
             <button type="button" class="ghost-btn" onclick="navigate('/')">Back</button>
           </div>
@@ -401,27 +402,42 @@
           <div class="settings-layout">
             <nav class="settings-nav" aria-label="Settings sections">
               <button type="button" class="settings-nav-btn active" data-settings-panel="profile">Profile</button>
+              <button type="button" class="settings-nav-btn" data-settings-panel="name">Name</button>
               <button type="button" class="settings-nav-btn" data-settings-panel="appearance">Appearance</button>
               <button type="button" class="settings-nav-btn" data-settings-panel="accounts">Customer accounts</button>
             </nav>
             <div class="settings-content">
               <section id="settingsPanelProfile" class="settings-panel">
-                <h3>Your account</h3>
-                <p style="color: var(--muted); margin-bottom: 16px;">Email comes from your login and is stored in Supabase Auth. Name is saved here and shown in the header.</p>
+                <h3>Profile</h3>
+                <p style="color: var(--muted); margin-bottom: 16px;">Login email is shown only here — not on the home page or main nav greeting.</p>
                 <div id="settingsProfileOffline" hidden>
                   <p style="color: var(--muted);">Connect Supabase (env vars) to manage your profile.</p>
                 </div>
                 <div id="settingsProfileSignedOut" hidden>
-                  <p style="color: var(--muted);">Sign in to view your email and set a display name.</p>
+                  <p style="color: var(--muted);">Sign in to view the email associated with your account.</p>
                 </div>
                 <div id="settingsProfileSignedIn" hidden>
-                  <label class="section-label" for="settingsEmailDisplay">Email</label>
+                  <label class="section-label" for="settingsEmailDisplay">Login email</label>
                   <div id="settingsEmailDisplay" class="settings-email-readonly" aria-live="polite">—</div>
-                  <label class="section-label" for="settingsDisplayNameInput" style="margin-top: 18px;">Display name</label>
-                  <input id="settingsDisplayNameInput" type="text" placeholder="How we should greet you" maxlength="120" autocomplete="name" />
+                </div>
+              </section>
+
+              <section id="settingsPanelName" class="settings-panel" hidden>
+                <h3>Name</h3>
+                <p style="color: var(--muted); margin-bottom: 16px;">This name appears as <strong>Hi, (name)</strong> on the home page and in the header. It does not change your login email.</p>
+                <div id="settingsNameOffline" hidden>
+                  <p style="color: var(--muted);">Connect Supabase to save your display name.</p>
+                </div>
+                <div id="settingsNameSignedOut" hidden>
+                  <p style="color: var(--muted);">Sign in to set the name shown on the dashboard.</p>
+                </div>
+                <div id="settingsNameSignedIn" hidden>
+                  <label class="section-label" for="settingsDisplayNameInput">Display name</label>
+                  <input id="settingsDisplayNameInput" type="text" placeholder="e.g. Alex" maxlength="120" autocomplete="name" />
                   <div class="action-row" style="margin-top: 14px;">
                     <button type="button" class="primary-btn" onclick="saveProfileDisplayName()">Save name</button>
                   </div>
+                  <p class="settings-name-preview" id="settingsNamePreview" aria-live="polite"></p>
                 </div>
               </section>
 

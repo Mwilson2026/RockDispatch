@@ -1340,6 +1340,31 @@
       margin-bottom: 16px;
     }
 
+    .arc-home__dashboard-greet {
+      font-size: clamp(1.05rem, 2.4vw, 1.35rem);
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 18px;
+      letter-spacing: 0.02em;
+    }
+
+    .settings-name-preview {
+      margin-top: 14px;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .settings-email-readonly {
+      padding: 14px 16px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: var(--input-bg);
+      color: var(--muted);
+      font-size: 14px;
+      word-break: break-all;
+    }
+
     /* Same stack as nav brand + section headings: Inter, uppercase, tracked (cf. .brand-copy h1, .section-top h2) */
     .arc-home__title {
       font-family: inherit;
