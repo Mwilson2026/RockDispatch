@@ -266,22 +266,74 @@ function displayNameForNav(user) {
   return humanized || 'Signed in';
 }
 
-function updateAuthNav() {
-  const btn = el('authStatusBtn');
-  const logoutBtn = el('logoutBtn');
-  if (logoutBtn) {
-    logoutBtn.hidden = !supabaseClient || !state.session?.user;
+function closeNavUserDropdown() {
+  const dd = el('navUserDropdown');
+  const tr = el('navUserTrigger');
+  const root = el('navUserMenuRoot');
+  if (dd) dd.hidden = true;
+  if (tr) tr.setAttribute('aria-expanded', 'false');
+  root?.classList.remove('nav-user-menu--open');
+}
+
+function openNavUserDropdown() {
+  const dd = el('navUserDropdown');
+  const tr = el('navUserTrigger');
+  const root = el('navUserMenuRoot');
+  if (dd) dd.hidden = false;
+  if (tr) tr.setAttribute('aria-expanded', 'true');
+  root?.classList.add('nav-user-menu--open');
+}
+
+function initNavUserMenu() {
+  if (initNavUserMenu.done) return;
+  initNavUserMenu.done = true;
+  const trig = el('navUserTrigger');
+  if (trig) {
+    trig.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const dd = el('navUserDropdown');
+      if (!dd) return;
+      if (dd.hidden) openNavUserDropdown();
+      else closeNavUserDropdown();
+    });
   }
-  if (!btn) return;
+  document.addEventListener('click', (e) => {
+    const root = el('navUserMenuRoot');
+    if (!root || root.hidden) return;
+    if (e.target.closest('#navUserMenuRoot')) return;
+    closeNavUserDropdown();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeNavUserDropdown();
+  });
+}
+
+function updateAuthNav() {
+  const loginBtn = el('authLoginBtn');
+  const userRoot = el('navUserMenuRoot');
+  const labelEl = el('navUserLabel');
   if (!supabaseClient) {
-    btn.textContent = 'Offline';
+    if (loginBtn) {
+      loginBtn.textContent = 'Offline';
+      loginBtn.hidden = false;
+    }
+    if (userRoot) userRoot.hidden = true;
+    closeNavUserDropdown();
     return;
   }
   if (state.session?.user) {
+    if (loginBtn) loginBtn.hidden = true;
+    if (userRoot) userRoot.hidden = false;
     const label = displayNameForNav(state.session.user);
-    btn.textContent = state.isAdmin ? `${label} · Admin` : label;
+    const text = state.isAdmin ? `${label} · Admin` : label;
+    if (labelEl) labelEl.textContent = text;
   } else {
-    btn.textContent = 'Login';
+    if (loginBtn) {
+      loginBtn.hidden = false;
+      loginBtn.textContent = 'Login';
+    }
+    if (userRoot) userRoot.hidden = true;
+    closeNavUserDropdown();
   }
 }
 
@@ -314,22 +366,11 @@ async function loadCloudData() {
 
 async function signOutUser() {
   if (!supabaseClient) return;
+  closeNavUserDropdown();
   const { error } = await supabaseClient.auth.signOut();
   if (error) {
     showToast(error.message);
     return;
-  }
-}
-
-function onAuthNavClick() {
-  if (!supabaseClient) {
-    toggleAuth(true);
-    return;
-  }
-  if (state.session?.user) {
-    navigate('/settings');
-  } else {
-    toggleAuth(true);
   }
 }
 
@@ -2038,7 +2079,7 @@ function onAuthNavClick() {
       openBuilder,
       openAdmin,
       toggleAuth,
-      onAuthNavClick,
+      closeNavUserDropdown,
       deskGoToToday,
       setOrdersBoardDate,
       ordersGoToToday,
@@ -2070,6 +2111,7 @@ function onAuthNavClick() {
     (async function bootstrapDesk() {
       initDeskDate();
       syncThemeRadios();
+      initNavUserMenu();
 
       if (!initSupabase()) {
         loadDeskStorage();

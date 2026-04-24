@@ -32,8 +32,24 @@
       <div class="nav-actions">
         <button type="button" class="icon-btn" onclick="navigate('/settings')" title="Settings" aria-label="Settings">⚙</button>
         <button type="button" class="icon-btn" onclick="toggleAuth()" aria-label="Account">◎</button>
-        <button type="button" class="ghost-btn menu-persist" onclick="onAuthNavClick()" id="authStatusBtn">Login</button>
-        <button type="button" class="ghost-btn menu-persist nav-logout" onclick="signOutUser()" id="logoutBtn" hidden>Log out</button>
+        <button type="button" class="ghost-btn menu-persist" onclick="toggleAuth(true)" id="authLoginBtn">Login</button>
+        <div class="nav-user-menu" id="navUserMenuRoot" hidden>
+          <button
+            type="button"
+            class="ghost-btn menu-persist nav-user-trigger"
+            id="navUserTrigger"
+            aria-expanded="false"
+            aria-haspopup="true"
+            aria-controls="navUserDropdown"
+          >
+            <span id="navUserLabel">Account</span>
+            <span class="nav-user-chevron" aria-hidden="true">▾</span>
+          </button>
+          <div class="nav-user-dropdown" id="navUserDropdown" role="menu" hidden>
+            <button type="button" role="menuitem" class="nav-user-item" onclick="navigate('/settings'); closeNavUserDropdown()">Settings</button>
+            <button type="button" role="menuitem" class="nav-user-item nav-user-item--danger" onclick="signOutUser(); closeNavUserDropdown()">Log out</button>
+          </div>
+        </div>
         <button type="button" class="summary-btn" onclick="navigate('/builder')">Dispatch <span class="badge-count" id="builderCount">0</span></button>
       </div>
     </header>
