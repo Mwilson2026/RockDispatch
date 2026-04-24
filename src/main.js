@@ -680,6 +680,11 @@ async function signOutUser() {
 
     async function pullCustomerAccountsFromSupabase() {
       if (!supabaseClient) return;
+      let localBackup = [];
+      try {
+        const raw = localStorage.getItem(STORAGE_CUSTOMER_ACCOUNTS);
+        if (raw) localBackup = normalizeCustomerAccounts(JSON.parse(raw));
+      } catch (e) {}
       const { data, error } = await supabaseClient
         .from('customer_accounts')
         .select('id, name')
@@ -690,9 +695,19 @@ async function signOutUser() {
         if (/customer_accounts|does not exist|relation/i.test(msg)) return;
         throw error;
       }
-      state.customerAccounts = (data || [])
+      const cloudRows = (data || [])
         .map((r) => ({ id: String(r.id || '').trim(), name: String(r.name || '').trim() }))
         .filter((r) => r.id && r.name);
+      // Keep locally saved rows if cloud is currently empty, then backfill cloud.
+      if (!cloudRows.length && localBackup.length) {
+        state.customerAccounts = localBackup;
+        for (const row of localBackup) {
+          await sbUpsertCustomerAccount(row);
+        }
+        persistCustomerAccounts();
+        return;
+      }
+      state.customerAccounts = cloudRows;
       if (!state.customerAccounts.length) {
         const cod = { id: 'CA-COD', name: 'COD' };
         const ins = await supabaseClient.from('customer_accounts').upsert(cod);
@@ -703,6 +718,11 @@ async function signOutUser() {
 
     async function pullTruckTaresFromSupabase() {
       if (!supabaseClient) return;
+      let localBackup = [];
+      try {
+        const raw = localStorage.getItem(STORAGE_TRUCK_TARES);
+        if (raw) localBackup = normalizeTruckTares(JSON.parse(raw));
+      } catch (e) {}
       const { data, error } = await supabaseClient
         .from('truck_tares')
         .select('id, truck, company_name, tare_weight')
@@ -712,7 +732,7 @@ async function signOutUser() {
         if (/truck_tares|does not exist|relation/i.test(msg)) return;
         throw error;
       }
-      state.truckTares = (data || [])
+      const cloudRows = (data || [])
         .map((r) => ({
           id: String(r.id || '').trim(),
           truck: String(r.truck || '').trim(),
@@ -720,6 +740,16 @@ async function signOutUser() {
           tareWeight: Number(r.tare_weight || 0)
         }))
         .filter((r) => r.id && r.truck);
+      // Keep locally saved rows if cloud is currently empty, then backfill cloud.
+      if (!cloudRows.length && localBackup.length) {
+        state.truckTares = localBackup;
+        for (const row of localBackup) {
+          await sbUpsertTruckTare(row);
+        }
+        persistTruckTares();
+        return;
+      }
+      state.truckTares = cloudRows;
       persistTruckTares();
     }
 
@@ -1094,10 +1124,39 @@ async function signOutUser() {
       } catch (e) {}
     }
 
+    function normalizeCustomerAccounts(rows) {
+      if (!Array.isArray(rows)) return [];
+      return rows
+        .map((r) => {
+          const id = String(r?.id || '').trim();
+          const name = String(r?.name || '').trim();
+          if (!id || !name) return null;
+          return { id, name };
+        })
+        .filter(Boolean);
+    }
+
+    function normalizeTruckTares(rows) {
+      if (!Array.isArray(rows)) return [];
+      return rows
+        .map((r) => {
+          const id = String(r?.id || '').trim();
+          const truck = String(r?.truck || '').trim();
+          if (!id || !truck) return null;
+          return {
+            id,
+            truck,
+            companyName: String(r?.companyName || '').trim(),
+            tareWeight: Number(r?.tareWeight || 0)
+          };
+        })
+        .filter(Boolean);
+    }
+
     function loadCustomerAccountsStorage() {
       try {
         const raw = localStorage.getItem(STORAGE_CUSTOMER_ACCOUNTS);
-        if (raw) state.customerAccounts = JSON.parse(raw);
+        if (raw) state.customerAccounts = normalizeCustomerAccounts(JSON.parse(raw));
         if (!Array.isArray(state.customerAccounts)) state.customerAccounts = [];
       } catch (e) {
         state.customerAccounts = [];
@@ -1119,7 +1178,7 @@ async function signOutUser() {
     function loadTruckTaresStorage() {
       try {
         const raw = localStorage.getItem(STORAGE_TRUCK_TARES);
-        if (raw) state.truckTares = JSON.parse(raw);
+        if (raw) state.truckTares = normalizeTruckTares(JSON.parse(raw));
         if (!Array.isArray(state.truckTares)) state.truckTares = [];
       } catch (e) {
         state.truckTares = [];
@@ -1528,7 +1587,7 @@ async function signOutUser() {
         showToast('Enter an account name.');
         return;
       }
-      if (state.customerAccounts.some((a) => a.name.toLowerCase() === name.toLowerCase())) {
+      if (state.customerAccounts.some((a) => String(a?.name || '').toLowerCase() === name.toLowerCase())) {
         showToast('That account name already exists.');
         return;
       }
@@ -1899,7 +1958,7 @@ async function signOutUser() {
         showToast('Enter truck number and tare weight.');
         return;
       }
-      if (state.truckTares.some((t) => t.truck.toLowerCase() === truck.toLowerCase())) {
+      if (state.truckTares.some((t) => String(t?.truck || '').toLowerCase() === truck.toLowerCase())) {
         showToast('That truck already exists. Use Edit instead.');
         return;
       }
