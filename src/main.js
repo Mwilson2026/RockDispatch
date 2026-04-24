@@ -3181,7 +3181,7 @@ async function signOutUser() {
           seedDeskIfEmpty();
           updateAuthNav();
           toggleAuth(true);
-          setAuthModalDismissable(false);
+          setAuthModalDismissable(true);
           applyRouteFromLocation();
           return;
         }
@@ -3233,7 +3233,7 @@ async function signOutUser() {
         loadTruckTaresStorage();
         seedDeskIfEmpty();
         toggleAuth(true);
-        setAuthModalDismissable(false);
+        setAuthModalDismissable(true);
         updateAuthNav();
       }
 
