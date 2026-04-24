@@ -2744,6 +2744,18 @@ async function signOutUser() {
         renderStoredTruckTaresList();
       });
     }
+    const headerMenuDropdown = el('headerMenuDropdown');
+    if (headerMenuDropdown) {
+      headerMenuDropdown.addEventListener('click', (e) => {
+        const link = e.target.closest?.('a[data-route]');
+        if (!link) return;
+        const href = link.getAttribute('href');
+        if (!href || !href.startsWith('/')) return;
+        e.preventDefault();
+        closeHeaderMenu();
+        navigate(href);
+      });
+    }
     document.addEventListener('click', (e) => {
       if (!e.target.closest?.('.account-combo')) {
         const dd = el('soAccountDropdown');
