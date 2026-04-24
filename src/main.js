@@ -828,7 +828,9 @@ async function signOutUser() {
     function persistCustomerAccounts() {
       try {
         localStorage.setItem(STORAGE_CUSTOMER_ACCOUNTS, JSON.stringify(state.customerAccounts));
+        return true;
       } catch (e) {}
+      return false;
     }
 
     function setTheme(theme) {
@@ -1164,11 +1166,17 @@ async function signOutUser() {
         return;
       }
       state.customerAccounts.push({ id: `CA-${Date.now()}`, name });
-      persistCustomerAccounts();
+      if (!persistCustomerAccounts()) {
+        showToast('Could not save customer accounts in local storage.');
+        return;
+      }
+      loadCustomerAccountsStorage();
       if (inp) inp.value = '';
       renderCustomerAccountsList();
       renderAccountDropdown();
+      renderScaleAccountDropdown();
       clearAccountSelection();
+      clearScaleAccountSelection();
       showToast('Customer account added.');
     }
 
@@ -1184,6 +1192,7 @@ async function signOutUser() {
       }
       a.name = name;
       persistCustomerAccounts();
+      loadCustomerAccountsStorage();
       renderCustomerAccountsList();
       renderAccountDropdown();
       renderScaleAccountDropdown();
@@ -1196,6 +1205,7 @@ async function signOutUser() {
       if (!window.confirm('Delete this customer account? Existing orders keep the name they had when saved.')) return;
       state.customerAccounts = state.customerAccounts.filter((a) => a.id !== id);
       persistCustomerAccounts();
+      loadCustomerAccountsStorage();
       renderCustomerAccountsList();
       renderAccountDropdown();
       renderScaleAccountDropdown();
@@ -2541,6 +2551,7 @@ async function signOutUser() {
           updateAuthNav();
           try {
             await loadCloudData();
+            loadCustomerAccountsStorage();
             persistDesk();
           } catch (err) {
             console.error(err);
