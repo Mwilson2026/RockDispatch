@@ -145,8 +145,10 @@ const baseTemplates = [
     async function fetchUserProfile() {
       state.role = 'user';
       state.isAdmin = false;
-      state.profileDisplayName = null;
-      if (!supabaseClient || !state.session?.user?.id) return;
+      if (!supabaseClient || !state.session?.user?.id) {
+        state.profileDisplayName = null;
+        return;
+      }
       const uid = state.session.user.id;
 
       let { data, error } = await supabaseClient
@@ -171,12 +173,17 @@ const baseTemplates = [
         }
       }
 
-      if (!data) return;
+      if (!data) {
+        state.profileDisplayName = null;
+        return;
+      }
 
       state.role = data.role === 'admin' ? 'admin' : 'user';
       state.isAdmin = state.role === 'admin';
-      const dn = data.display_name;
-      state.profileDisplayName = typeof dn === 'string' && dn.trim() ? dn.trim() : null;
+      if (Object.prototype.hasOwnProperty.call(data, 'display_name')) {
+        const dn = data.display_name;
+        state.profileDisplayName = typeof dn === 'string' && dn.trim() ? dn.trim() : null;
+      }
     }
 
     const el = (id) => document.getElementById(id);
@@ -878,39 +885,28 @@ async function signOutUser() {
       const raw = (inp?.value ?? '').trim();
       const display_name = raw.length ? raw : null;
 
-      const updated = await supabaseClient
+      const payload = { id: uid, display_name };
+      const res = await supabaseClient
         .from('profiles')
-        .update({ display_name })
-        .eq('id', uid)
-        .select('id');
+        .upsert(payload, { onConflict: 'id' })
+        .select('display_name')
+        .maybeSingle();
 
-      let error = updated.error;
-      const rows = updated.data;
-
-      if (!error && (!rows || rows.length === 0)) {
-        const inserted = await supabaseClient
-          .from('profiles')
-          .insert({ id: uid, display_name })
-          .select('id');
-        error = inserted.error;
-      }
-
-      if (error) {
-        console.error(error);
-        showToast(
-          error.message +
-            (/display_name|column|policy|permission|RLS|row-level/i.test(String(error.message))
-              ? ' Run Supabase migrations for profiles (display_name + profiles_insert_own).'
-              : '')
-        );
+      if (res.error) {
+        console.error(res.error);
+        const hint =
+          /display_name|column|policy|permission|RLS|row-level|violates/i.test(String(res.error.message || ''))
+            ? ' Apply SQL migrations: display_name column + profiles_update_own + profiles_insert_own.'
+            : '';
+        showToast((res.error.message || 'Could not save name.') + hint);
         return;
       }
 
-      state.profileDisplayName = display_name;
+      await fetchUserProfile();
       updateAuthNav();
       updateDashboardGreeting();
       renderSettingsPage();
-      showToast('Name saved.');
+      showToast('Name saved.', 3500);
     }
 
     function renderCustomerAccountsList() {
