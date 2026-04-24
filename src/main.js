@@ -142,6 +142,14 @@ const baseTemplates = [
       return `${owner}:${t.id}`;
     }
 
+    /** Display name from Supabase Auth user_metadata (always available when signed in; survives without profiles.display_name). */
+    function displayNameFromUser(user) {
+      if (!user) return null;
+      const m = user.user_metadata || {};
+      const v = m.display_name ?? m.full_name;
+      return typeof v === 'string' && v.trim() ? v.trim() : null;
+    }
+
     async function fetchUserProfile() {
       state.role = 'user';
       state.isAdmin = false;
@@ -150,6 +158,7 @@ const baseTemplates = [
         return;
       }
       const uid = state.session.user.id;
+      const metaName = displayNameFromUser(state.session.user);
 
       let { data, error } = await supabaseClient
         .from('profiles')
@@ -163,27 +172,32 @@ const baseTemplates = [
           const fb = await supabaseClient.from('profiles').select('role').eq('id', uid).maybeSingle();
           if (fb.error) {
             console.error(fb.error);
+            state.profileDisplayName = metaName;
             return;
           }
           data = fb.data;
           error = null;
         } else {
           console.error(error);
+          state.profileDisplayName = metaName;
           return;
         }
       }
 
       if (!data) {
-        state.profileDisplayName = null;
+        state.profileDisplayName = metaName;
         return;
       }
 
       state.role = data.role === 'admin' ? 'admin' : 'user';
       state.isAdmin = state.role === 'admin';
+
+      let fromCol = null;
       if (Object.prototype.hasOwnProperty.call(data, 'display_name')) {
-        const dn = data.display_name;
-        state.profileDisplayName = typeof dn === 'string' && dn.trim() ? dn.trim() : null;
+        const col = data.display_name;
+        fromCol = typeof col === 'string' && col.trim() ? col.trim() : null;
       }
+      state.profileDisplayName = fromCol ?? metaName;
     }
 
     const el = (id) => document.getElementById(id);
@@ -278,12 +292,17 @@ function closeAuthModal() {
   setAuthModalDismissable(true);
 }
 
-/** Header greeting: Settings → Name tab only (profiles.display_name). Never shows login email or username. */
-function navAccountGreeting(user) {
-  if (!user) return 'Hi';
+/** Text for the always-visible header span (Settings → Name → profiles.display_name). */
+function navHeaderHiText() {
+  if (!supabaseClient || !state.session?.user) return '';
   const name = state.profileDisplayName?.trim();
-  const hi = name ? `Hi, ${name}` : 'Hi';
-  return state.isAdmin ? `${hi} · Admin` : hi;
+  return name ? `Hi, ${name}` : 'Hi';
+}
+
+/** Account dropdown button label — avoids duplicating the header “Hi, …” line. */
+function navUserMenuButtonLabel() {
+  if (!state.session?.user) return 'Account';
+  return state.isAdmin ? 'Account · Admin' : 'Account';
 }
 
 function updateDashboardGreeting() {
@@ -345,12 +364,17 @@ function updateAuthNav() {
   const loginBtn = el('authLoginBtn');
   const userRoot = el('navUserMenuRoot');
   const labelEl = el('navUserLabel');
+  const headerGreet = el('navHeaderGreeting');
   if (!supabaseClient) {
     if (loginBtn) {
       loginBtn.textContent = 'Offline';
       loginBtn.hidden = false;
     }
     if (userRoot) userRoot.hidden = true;
+    if (headerGreet) {
+      headerGreet.hidden = true;
+      headerGreet.textContent = '';
+    }
     closeNavUserDropdown();
     updateDashboardGreeting();
     return;
@@ -358,14 +382,21 @@ function updateAuthNav() {
   if (state.session?.user) {
     if (loginBtn) loginBtn.hidden = true;
     if (userRoot) userRoot.hidden = false;
-    const text = navAccountGreeting(state.session.user);
-    if (labelEl) labelEl.textContent = text;
+    if (labelEl) labelEl.textContent = navUserMenuButtonLabel();
+    if (headerGreet) {
+      headerGreet.textContent = navHeaderHiText();
+      headerGreet.hidden = false;
+    }
   } else {
     if (loginBtn) {
       loginBtn.hidden = false;
       loginBtn.textContent = 'Login';
     }
     if (userRoot) userRoot.hidden = true;
+    if (headerGreet) {
+      headerGreet.hidden = true;
+      headerGreet.textContent = '';
+    }
     closeNavUserDropdown();
   }
   updateDashboardGreeting();
@@ -885,23 +916,40 @@ async function signOutUser() {
       const raw = (inp?.value ?? '').trim();
       const display_name = raw.length ? raw : null;
 
-      const payload = { id: uid, display_name };
+      const { error: authErr } = await supabaseClient.auth.updateUser({
+        data: { display_name }
+      });
+
+      const { data: sessionWrap } = await supabaseClient.auth.getSession();
+      if (sessionWrap?.session) {
+        state.session = sessionWrap.session;
+        state.user = sessionWrap.session.user;
+      }
+
       const res = await supabaseClient
         .from('profiles')
-        .upsert(payload, { onConflict: 'id' })
+        .upsert({ id: uid, display_name }, { onConflict: 'id' })
         .select('display_name')
         .maybeSingle();
 
-      if (res.error) {
-        console.error(res.error);
+      if (authErr && res.error) {
+        console.error(authErr, res.error);
         const hint =
           /display_name|column|policy|permission|RLS|row-level|violates/i.test(String(res.error.message || ''))
-            ? ' Apply SQL migrations: display_name column + profiles_update_own + profiles_insert_own.'
+            ? ' If the database is not migrated, your project still needs profiles policies; auth save should work after refresh.'
             : '';
-        showToast((res.error.message || 'Could not save name.') + hint);
+        showToast((authErr.message || res.error.message || 'Could not save name.') + hint);
         return;
       }
 
+      if (authErr) console.warn('[Rock Dispatch] Saved display name to profiles; auth metadata failed:', authErr);
+      if (res.error)
+        console.warn(
+          '[Rock Dispatch] Saved display name to auth metadata; profiles upsert failed (run migrations if you need DB copy):',
+          res.error
+        );
+
+      state.profileDisplayName = raw.length ? raw : displayNameFromUser(state.session.user);
       await fetchUserProfile();
       updateAuthNav();
       updateDashboardGreeting();

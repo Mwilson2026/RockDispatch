@@ -150,6 +150,22 @@
       gap: 10px;
     }
 
+    .nav-header-greet {
+      font-size: 14px;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.92);
+      letter-spacing: 0.02em;
+      max-width: min(200px, 28vw);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex-shrink: 1;
+    }
+
+    [data-theme="light"] .nav-header-greet {
+      color: var(--text);
+    }
+
     .icon-btn, .ghost-btn, .primary-btn, .pill, .mini-btn, .tab-btn, .summary-btn, .status-btn {
       border-radius: 999px;
       transition: .2s ease;
