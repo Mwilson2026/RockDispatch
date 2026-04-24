@@ -567,7 +567,9 @@ async function loadCloudData() {
     pullDeskFromSupabase(),
     pullTemplatesFromSupabase(),
     pullIssuedFromSupabase(),
-    pullPinsFromSupabase()
+    pullPinsFromSupabase(),
+    pullCustomerAccountsFromSupabase(),
+    pullTruckTaresFromSupabase()
   ]);
 }
 
@@ -674,6 +676,99 @@ async function signOutUser() {
       if (!supabaseClient) return;
       const { error } = await supabaseClient.from('daily_orders').delete().eq('id', id);
       if (error) console.error(error);
+    }
+
+    async function pullCustomerAccountsFromSupabase() {
+      if (!supabaseClient) return;
+      const { data, error } = await supabaseClient
+        .from('customer_accounts')
+        .select('id, name')
+        .order('name', { ascending: true });
+      if (error) {
+        const msg = String(error.message || error.code || '');
+        // Migration may not be applied yet; keep app functional with local storage.
+        if (/customer_accounts|does not exist|relation/i.test(msg)) return;
+        throw error;
+      }
+      state.customerAccounts = (data || [])
+        .map((r) => ({ id: String(r.id || '').trim(), name: String(r.name || '').trim() }))
+        .filter((r) => r.id && r.name);
+      if (!state.customerAccounts.length) {
+        const cod = { id: 'CA-COD', name: 'COD' };
+        const ins = await supabaseClient.from('customer_accounts').upsert(cod);
+        if (!ins.error) state.customerAccounts = [cod];
+      }
+      persistCustomerAccounts();
+    }
+
+    async function pullTruckTaresFromSupabase() {
+      if (!supabaseClient) return;
+      const { data, error } = await supabaseClient
+        .from('truck_tares')
+        .select('id, truck, company_name, tare_weight')
+        .order('truck', { ascending: true });
+      if (error) {
+        const msg = String(error.message || error.code || '');
+        if (/truck_tares|does not exist|relation/i.test(msg)) return;
+        throw error;
+      }
+      state.truckTares = (data || [])
+        .map((r) => ({
+          id: String(r.id || '').trim(),
+          truck: String(r.truck || '').trim(),
+          companyName: String(r.company_name || '').trim(),
+          tareWeight: Number(r.tare_weight || 0)
+        }))
+        .filter((r) => r.id && r.truck);
+      persistTruckTares();
+    }
+
+    async function sbUpsertCustomerAccount(row) {
+      if (!supabaseClient) return true;
+      const { error } = await supabaseClient.from('customer_accounts').upsert({
+        id: row.id,
+        name: row.name
+      });
+      if (error) {
+        console.error(error);
+        return false;
+      }
+      return true;
+    }
+
+    async function sbDeleteCustomerAccount(id) {
+      if (!supabaseClient) return true;
+      const { error } = await supabaseClient.from('customer_accounts').delete().eq('id', id);
+      if (error) {
+        console.error(error);
+        return false;
+      }
+      return true;
+    }
+
+    async function sbUpsertTruckTare(row) {
+      if (!supabaseClient) return true;
+      const { error } = await supabaseClient.from('truck_tares').upsert({
+        id: row.id,
+        truck: row.truck,
+        company_name: row.companyName || '',
+        tare_weight: Number(row.tareWeight || 0)
+      });
+      if (error) {
+        console.error(error);
+        return false;
+      }
+      return true;
+    }
+
+    async function sbDeleteTruckTare(id) {
+      if (!supabaseClient) return true;
+      const { error } = await supabaseClient.from('truck_tares').delete().eq('id', id);
+      if (error) {
+        console.error(error);
+        return false;
+      }
+      return true;
     }
 
     function mapTemplateFromDb(row) {
@@ -1426,7 +1521,7 @@ async function signOutUser() {
       });
     }
 
-    function addCustomerAccount() {
+    async function addCustomerAccount() {
       const inp = el('newAccountName');
       const name = inp?.value.trim() ?? '';
       if (!name) {
@@ -1437,12 +1532,22 @@ async function signOutUser() {
         showToast('That account name already exists.');
         return;
       }
-      state.customerAccounts.push({ id: `CA-${Date.now()}`, name });
+      const row = { id: `CA-${Date.now()}`, name };
+      state.customerAccounts.push(row);
       if (!persistCustomerAccounts()) {
         showToast('Could not save customer accounts in local storage.');
         return;
       }
-      loadCustomerAccountsStorage();
+      if (state.session?.user && supabaseClient) {
+        const ok = await sbUpsertCustomerAccount(row);
+        if (!ok) {
+          showToast('Saved locally. Could not sync customer account globally.');
+        } else {
+          await pullCustomerAccountsFromSupabase();
+        }
+      } else {
+        loadCustomerAccountsStorage();
+      }
       if (inp) inp.value = '';
       renderCustomerAccountsList();
       renderAccountDropdown();
@@ -1452,7 +1557,7 @@ async function signOutUser() {
       showToast('Customer account added.');
     }
 
-    function renameCustomerAccount(id) {
+    async function renameCustomerAccount(id) {
       const a = state.customerAccounts.find((x) => x.id === id);
       if (!a) return;
       const next = window.prompt('Rename customer account', a.name);
@@ -1464,7 +1569,16 @@ async function signOutUser() {
       }
       a.name = name;
       persistCustomerAccounts();
-      loadCustomerAccountsStorage();
+      if (state.session?.user && supabaseClient) {
+        const ok = await sbUpsertCustomerAccount(a);
+        if (!ok) {
+          showToast('Updated locally. Could not sync customer account globally.');
+        } else {
+          await pullCustomerAccountsFromSupabase();
+        }
+      } else {
+        loadCustomerAccountsStorage();
+      }
       renderCustomerAccountsList();
       renderAccountDropdown();
       renderScaleAccountDropdown();
@@ -1473,11 +1587,20 @@ async function signOutUser() {
       showToast('Account updated.');
     }
 
-    function deleteCustomerAccount(id) {
+    async function deleteCustomerAccount(id) {
       if (!window.confirm('Delete this customer account? Existing orders keep the name they had when saved.')) return;
       state.customerAccounts = state.customerAccounts.filter((a) => a.id !== id);
       persistCustomerAccounts();
-      loadCustomerAccountsStorage();
+      if (state.session?.user && supabaseClient) {
+        const ok = await sbDeleteCustomerAccount(id);
+        if (!ok) {
+          showToast('Removed locally. Could not sync customer account deletion globally.');
+        } else {
+          await pullCustomerAccountsFromSupabase();
+        }
+      } else {
+        loadCustomerAccountsStorage();
+      }
       renderCustomerAccountsList();
       renderAccountDropdown();
       renderScaleAccountDropdown();
@@ -1768,7 +1891,7 @@ async function signOutUser() {
       renderStoredTruckTaresList();
     }
 
-    function addStoredTruckTare() {
+    async function addStoredTruckTare() {
       const truck = (el('newTruckNumber')?.value || '').trim();
       const companyName = (el('newTruckCompanyName')?.value || '').trim();
       const tareRaw = parseFloat(el('newTruckTareWeight')?.value || '');
@@ -1780,12 +1903,22 @@ async function signOutUser() {
         showToast('That truck already exists. Use Edit instead.');
         return;
       }
-      state.truckTares.push({ id: `TR-${Date.now()}`, truck, companyName, tareWeight: tareRaw });
+      const row = { id: `TR-${Date.now()}`, truck, companyName, tareWeight: tareRaw };
+      state.truckTares.push(row);
       if (!persistTruckTares()) {
         showToast('Could not save stored truck tares.');
         return;
       }
-      loadTruckTaresStorage();
+      if (state.session?.user && supabaseClient) {
+        const ok = await sbUpsertTruckTare(row);
+        if (!ok) {
+          showToast('Saved locally. Could not sync truck tare globally.');
+        } else {
+          await pullTruckTaresFromSupabase();
+        }
+      } else {
+        loadTruckTaresStorage();
+      }
       const tn = el('newTruckNumber');
       const tc = el('newTruckCompanyName');
       const tw = el('newTruckTareWeight');
@@ -1798,7 +1931,7 @@ async function signOutUser() {
       showToast('Stored truck tare added.');
     }
 
-    function editStoredTruckTare(id) {
+    async function editStoredTruckTare(id) {
       const row = state.truckTares.find((t) => t.id === id);
       if (!row) return;
       const nextTruck = window.prompt('Truck number', row.truck);
@@ -1822,18 +1955,36 @@ async function signOutUser() {
       row.companyName = companyName;
       row.tareWeight = tare;
       persistTruckTares();
-      loadTruckTaresStorage();
+      if (state.session?.user && supabaseClient) {
+        const ok = await sbUpsertTruckTare(row);
+        if (!ok) {
+          showToast('Updated locally. Could not sync truck tare globally.');
+        } else {
+          await pullTruckTaresFromSupabase();
+        }
+      } else {
+        loadTruckTaresStorage();
+      }
       renderStoredTruckTaresList();
       renderScaleTruckDropdown();
       if (state.selectedScaleTruckTareId === id) selectScaleTruckTare(id);
       showToast('Stored truck tare updated.');
     }
 
-    function deleteStoredTruckTare(id) {
+    async function deleteStoredTruckTare(id) {
       if (!window.confirm('Delete this stored truck tare?')) return;
       state.truckTares = state.truckTares.filter((t) => t.id !== id);
       persistTruckTares();
-      loadTruckTaresStorage();
+      if (state.session?.user && supabaseClient) {
+        const ok = await sbDeleteTruckTare(id);
+        if (!ok) {
+          showToast('Removed locally. Could not sync truck tare deletion globally.');
+        } else {
+          await pullTruckTaresFromSupabase();
+        }
+      } else {
+        loadTruckTaresStorage();
+      }
       renderStoredTruckTaresList();
       renderScaleTruckDropdown();
       if (state.selectedScaleTruckTareId === id) clearScaleTruckSelection();
@@ -3043,8 +3194,6 @@ async function signOutUser() {
           updateAuthNav();
           try {
             await loadCloudData();
-            loadCustomerAccountsStorage();
-            loadTruckTaresStorage();
             persistDesk();
           } catch (err) {
             console.error(err);
@@ -3067,8 +3216,6 @@ async function signOutUser() {
           await loadCloudData();
           persistDesk();
           loadSalesOrdersStorage();
-          loadCustomerAccountsStorage();
-          loadTruckTaresStorage();
         } catch (err) {
           console.error(err);
           showToast('Could not load Supabase — using saved browser data.');
