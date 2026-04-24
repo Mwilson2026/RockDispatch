@@ -1,5 +1,6 @@
 import './style.css';
 import { createClient } from '@supabase/supabase-js';
+import { jsPDF } from 'jspdf';
 
 try {
   const stored = localStorage.getItem('rockDispatch_theme');
@@ -320,6 +321,85 @@ function navHeaderHiText() {
   return name ? `Hi, ${name}` : 'Hi';
 }
 
+function activeUserLabel() {
+  const user = state.session?.user;
+  if (!user) return 'Unknown user';
+  const display = state.profileDisplayName?.trim();
+  if (display) return display;
+  const meta = displayNameFromUser(user);
+  if (meta) return meta;
+  const email = String(user.email || '').trim();
+  return email || 'Unknown user';
+}
+
+function buildScaleTicketPdf(t) {
+  const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+  const marginX = 48;
+  let y = 54;
+
+  const addLine = (label, value) => {
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${label}:`, marginX, y);
+    doc.setFont('helvetica', 'normal');
+    doc.text(String(value ?? '—'), marginX + 110, y);
+    y += 22;
+  };
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(20);
+  doc.text('Scale Ticket', marginX, y);
+  y += 26;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(11);
+  doc.text('Rock Dispatch System', marginX, y);
+  y += 28;
+
+  addLine('Ticket #', t.ticket || '—');
+  addLine('Date', t.date || '—');
+  addLine('Time', t.time || '—');
+  addLine('Truck', t.truck || '—');
+  addLine('Material', t.material || '—');
+  addLine('Customer', t.customer || '—');
+  addLine('Job', t.job || '—');
+  addLine(
+    'Total Material Weight',
+    Number.isFinite(Number(t.totalMaterialWeight)) ? Number(t.totalMaterialWeight).toFixed(2) : '—'
+  );
+  addLine('Converted Tons', Number.isFinite(Number(t.netTons)) ? Number(t.netTons).toFixed(3) : '—');
+  addLine('Loads', Number(t.loads) || 0);
+  addLine('Status', t.status || '—');
+  addLine('Entered By', t.enteredBy || '—');
+
+  y += 8;
+  doc.setFont('helvetica', 'bold');
+  doc.text('Notes:', marginX, y);
+  y += 16;
+  doc.setFont('helvetica', 'normal');
+  const notes = String(t.notes || '—');
+  const wrapped = doc.splitTextToSize(notes, 500);
+  doc.text(wrapped, marginX, y);
+
+  return doc;
+}
+
+function downloadScaleTicketPdf(id) {
+  const t = state.scaleTickets.find((x) => x.id === id);
+  if (!t) return;
+  const doc = buildScaleTicketPdf(t);
+  const ticketPart = String(t.ticket || t.id || 'ticket').replace(/[^\w-]+/g, '_');
+  const datePart = String(t.date || '').replace(/[^\d-]/g, '') || 'date';
+  doc.save(`scale-ticket-${ticketPart}-${datePart}.pdf`);
+}
+
+function printScaleTicketPdf(id) {
+  const t = state.scaleTickets.find((x) => x.id === id);
+  if (!t) return;
+  const doc = buildScaleTicketPdf(t);
+  doc.autoPrint();
+  window.open(doc.output('bloburl'), '_blank', 'noopener,noreferrer');
+}
+
 function updateDashboardGreeting() {
   const greet = el('homeDashboardGreeting');
   if (!greet) return;
@@ -436,6 +516,7 @@ async function signOutUser() {
         truck: row.truck,
         ticket: row.ticket,
         netTons: Number(row.net_tons),
+        totalMaterialWeight: row.net_tons != null ? Number(row.net_tons) * 2000 : 0,
         material: row.material,
         time: row.time_text,
         notes: row.notes || '',
@@ -443,7 +524,8 @@ async function signOutUser() {
         job: row.job ?? '',
         tonsOrdered: row.tons_ordered != null ? Number(row.tons_ordered) : 0,
         loads: Number(row.loads) || 0,
-        status: row.status || 'Scheduled'
+        status: row.status || 'Scheduled',
+        enteredBy: row.entered_by ?? ''
       };
     }
 
@@ -457,7 +539,8 @@ async function signOutUser() {
         tons: Number(row.tons),
         loads: Number(row.loads) || 0,
         status: row.status,
-        notes: row.notes || ''
+        notes: row.notes || '',
+        enteredBy: row.entered_by ?? ''
       };
     }
 
@@ -1116,61 +1199,59 @@ async function signOutUser() {
     }
 
     async function saveGreetingName() {
-      if (!supabaseClient || !state.session?.user?.id) {
-        showToast('Sign in to save your greeting.');
-        return;
-      }
-      const uid = state.session.user.id;
       const inp = el('settingsGreetingNameInput');
       const raw = (inp?.value ?? '').trim();
       const display_name = raw.length ? raw : null;
-
-      const { data: authUpdateData, error: authErr } = await supabaseClient.auth.updateUser({
-        data: { display_name }
-      });
-
-      if (authUpdateData?.user && state.session) {
-        state.session = { ...state.session, user: authUpdateData.user };
-        state.user = authUpdateData.user;
-      } else {
-        const { data: sessionWrap } = await supabaseClient.auth.getSession();
-        if (sessionWrap?.session) {
-          state.session = sessionWrap.session;
-          state.user = sessionWrap.session.user;
+      let uid = state.session?.user?.id ?? null;
+      if (!uid && supabaseClient) {
+        try {
+          const { data: sessionWrap } = await supabaseClient.auth.getSession();
+          if (sessionWrap?.session?.user?.id) {
+            state.session = sessionWrap.session;
+            state.user = sessionWrap.session.user;
+            uid = sessionWrap.session.user.id;
+          }
+        } catch (e) {
+          console.warn('[Rock Dispatch] Could not refresh auth session before saving greeting.', e);
         }
       }
 
-      const res = await supabaseClient
-        .from('profiles')
-        .upsert({ id: uid, display_name }, { onConflict: 'id' })
-        .select('display_name')
-        .maybeSingle();
+      let authErr = null;
+      let profileErr = null;
+      if (supabaseClient && uid) {
+        const authRes = await supabaseClient.auth.updateUser({
+          data: { display_name }
+        });
+        authErr = authRes.error ?? null;
+        if (authRes.data?.user && state.session) {
+          state.session = { ...state.session, user: authRes.data.user };
+          state.user = authRes.data.user;
+        }
 
-      if (authErr && res.error) {
-        console.error(authErr, res.error);
-        const hint =
-          /display_name|column|policy|permission|RLS|row-level|violates/i.test(String(res.error.message || ''))
-            ? ' If the database is not migrated, your project still needs profiles policies; auth save should work after refresh.'
-            : '';
-        showToast((authErr.message || res.error.message || 'Could not save greeting.') + hint);
-        return;
+        const profileRes = await supabaseClient
+          .from('profiles')
+          .upsert({ id: uid, display_name }, { onConflict: 'id' })
+          .select('display_name')
+          .maybeSingle();
+        profileErr = profileRes.error ?? null;
       }
 
-      if (authErr) console.warn('[Rock Dispatch] Saved greeting to profiles; auth metadata failed:', authErr);
-      if (res.error)
-        console.warn(
-          '[Rock Dispatch] Saved greeting to auth metadata; profiles upsert failed (run migrations if you need DB copy):',
-          res.error
-        );
+      const cacheKeyUid = uid || 'local';
+      writeStoredProfileDisplayName(cacheKeyUid, raw.length ? raw : null);
+      state.profileDisplayName = raw.length ? raw : null;
 
-      writeStoredProfileDisplayName(uid, raw.length ? raw : null);
-
-      state.profileDisplayName =
-        raw.length ? raw : displayNameFromUser(state.session.user) ?? readStoredProfileDisplayName(uid);
-      await fetchUserProfile();
+      if (uid && supabaseClient) {
+        await fetchUserProfile();
+      }
       updateAuthNav();
       updateDashboardGreeting();
       renderSettingsPage();
+
+      if (authErr && profileErr) {
+        console.error(authErr, profileErr);
+        showToast('Greeting saved locally. Cloud sync failed.', 3800);
+        return;
+      }
       showToast('Greeting saved.', 3500);
     }
 
@@ -1698,6 +1779,8 @@ async function signOutUser() {
       el('scaleTareWeight').value = '';
       el('scaleGrossWeight').value = '';
       el('scaleTotalMaterialWeight').value = '';
+      const tonsEl = el('scaleTotalTons');
+      if (tonsEl) tonsEl.value = '';
       el('scaleMaterial').value = '';
       el('scaleJob').value = '';
       el('scaleLoads').value = '';
@@ -1706,16 +1789,41 @@ async function signOutUser() {
       el('scaleNotes').value = '';
     }
 
+    function convertScaleWeightToTons(showNotice = true) {
+      const totalWeightEl = el('scaleTotalMaterialWeight');
+      const tonsEl = el('scaleTotalTons');
+      if (!totalWeightEl || !tonsEl) return '';
+      const totalWeight = parseFloat(totalWeightEl.value);
+      if (Number.isNaN(totalWeight)) {
+        tonsEl.value = '';
+        if (showNotice) showToast('Enter gross and tare weight first.');
+        return '';
+      }
+      const tons = totalWeight / 2000;
+      tonsEl.value = Number.isFinite(tons) ? tons.toFixed(3) : '';
+      if (showNotice && tonsEl.value) showToast(`Converted: ${tonsEl.value} tons`);
+      return tonsEl.value;
+    }
+
     function addScaleTicket() {
       const truck = (el('scaleTruckSearch')?.value || '').trim();
       const tareWeight = parseFloat(el('scaleTareWeight').value);
       const grossWeight = parseFloat(el('scaleGrossWeight').value);
       const totalMaterialWeight = parseFloat(el('scaleTotalMaterialWeight').value);
+      let totalTons = parseFloat(el('scaleTotalTons')?.value || '');
+      if (Number.isNaN(totalTons)) {
+        const converted = convertScaleWeightToTons(false);
+        totalTons = parseFloat(converted || '');
+      }
       const accountId = el('scaleAccountId')?.value?.trim() ?? '';
       const accRecord = accountId ? state.customerAccounts.find((x) => x.id === accountId) : null;
       const customer = (accRecord ? accRecord.name : (el('scaleAccountSearch')?.value ?? '')).trim();
       if (!truck || Number.isNaN(tareWeight) || Number.isNaN(grossWeight) || Number.isNaN(totalMaterialWeight)) {
         showToast('Enter truck number, tare weight, and gross weight.');
+        return;
+      }
+      if (Number.isNaN(totalTons)) {
+        showToast('Convert total material weight to tons.');
         return;
       }
       if (grossWeight < tareWeight) {
@@ -1737,7 +1845,8 @@ async function signOutUser() {
         date: state.deskDate,
         truck,
         ticket: ticketNo,
-        netTons: totalMaterialWeight,
+        netTons: totalTons,
+        totalMaterialWeight,
         material: el('scaleMaterial').value.trim() || '—',
         time: el('scaleTime').value || '—',
         notes: el('scaleNotes').value.trim(),
@@ -1745,7 +1854,8 @@ async function signOutUser() {
         job: el('scaleJob').value.trim() || '—',
         tonsOrdered: 0,
         loads: parseInt(el('scaleLoads').value, 10) || 0,
-        status: el('scaleStatus').value
+        status: el('scaleStatus').value,
+        enteredBy: activeUserLabel()
       };
       state.scaleTickets.unshift(newTicket);
       persistDesk();
@@ -1778,7 +1888,8 @@ async function signOutUser() {
         tons,
         loads: parseInt(el('orderLoads').value, 10) || 0,
         status: el('orderStatus').value,
-        notes: el('orderNotes').value.trim()
+        notes: el('orderNotes').value.trim(),
+        enteredBy: activeUserLabel()
       };
       state.dailyOrders.unshift(newOrder);
       persistDesk();
@@ -1816,6 +1927,7 @@ async function signOutUser() {
         const cust = escapeHtml(t.customer || '—');
         const job = escapeHtml(t.job || '—');
         const st = escapeHtml(t.status || '—');
+        const by = escapeHtml(t.enteredBy || '—');
         row.innerHTML = `
           <div>${escapeHtml(t.truck)}</div>
           <div>${escapeHtml(String(t.ticket || '—'))}</div>
@@ -1826,10 +1938,17 @@ async function signOutUser() {
           <div>${t.tonsOrdered != null && !Number.isNaN(Number(t.tonsOrdered)) ? Number(t.tonsOrdered).toFixed(1) : '—'}</div>
           <div>${Number(t.loads) || 0}</div>
           <div>${st}</div>
+          <div title="${by}">${by}</div>
           <div>${escapeHtml(String(t.time))}</div>
-          <button type="button" class="ghost-btn" style="padding:8px 10px;font-size:11px;">Remove</button>
+          <div class="scale-row-actions">
+            <button type="button" class="ghost-btn mini-remove" data-print>Print PDF</button>
+            <button type="button" class="ghost-btn mini-remove" data-download>Download PDF</button>
+            <button type="button" class="ghost-btn mini-remove" data-remove>Remove</button>
+          </div>
         `;
-        row.querySelector('button').onclick = () => removeScaleTicket(t.id);
+        row.querySelector('[data-print]')?.addEventListener('click', () => printScaleTicketPdf(t.id));
+        row.querySelector('[data-download]')?.addEventListener('click', () => downloadScaleTicketPdf(t.id));
+        row.querySelector('[data-remove]')?.addEventListener('click', () => removeScaleTicket(t.id));
         body.appendChild(row);
       });
     }
@@ -1850,12 +1969,14 @@ async function signOutUser() {
           ? `<div style="color:var(--muted-2);font-size:11px;margin-top:4px;">${escapeHtml(o.notes)}</div>`
           : '';
         const loads = o.loads ? `<span style="color:var(--muted-2);"> · ${o.loads} loads</span>` : '';
+        const by = escapeHtml(o.enteredBy || '—');
         row.innerHTML = `
           <div>${escapeHtml(o.customer)}${noteHtml}</div>
           <div>${escapeHtml(o.job)}</div>
           <div>${escapeHtml(o.material)}${loads}</div>
           <div>${Number(o.tons).toFixed(1)}</div>
           <div><span class="tag">${escapeHtml(o.status)}</span></div>
+          <div title="${by}">${by}</div>
           <button type="button" class="ghost-btn" style="padding:8px 12px;font-size:12px;">Remove</button>
         `;
         row.querySelector('button').onclick = () => removeDailyOrder(o.id);
@@ -1948,6 +2069,7 @@ async function signOutUser() {
       }
       const total = gross - tare;
       totalEl.value = Number.isFinite(total) ? total.toFixed(2) : '';
+      convertScaleWeightToTons(false);
     }
 
     function formatMoney(v) { return `$${Number(v || 0).toFixed(2)}`; }
@@ -2786,6 +2908,9 @@ async function signOutUser() {
       clearSalesOrderForm,
       addScaleTicket,
       clearScaleForm,
+      convertScaleWeightToTons,
+      printScaleTicketPdf,
+      downloadScaleTicketPdf,
       addDailyOrder,
       setDeskDate,
       deskMonthNav,
