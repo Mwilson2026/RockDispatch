@@ -2300,25 +2300,8 @@ async function signOutUser() {
     function useCurrentTemplate() {
       const template = getTemplateById(state.currentDetailId);
       if (!template) return;
-      el('quoteCustomer').value = template.customer;
-      el('quoteCompany').value = '';
-      el('quoteProject').value = template.project;
-      el('quoteLocation').value = '';
-      el('quoteNumber').value = `RD-${String(template.id).padStart(4, '0')}`;
-      el('quoteDate').value = template.issueDate;
-      el('quoteExpiry').value = template.validThrough;
-      el('quoteTerms').value = template.terms;
-      el('quoteNotes').value = '';
-      el('quoteScope').value = template.description;
-      state.builderLines = template.lineItems.map((item) => ({
-        description: item.description,
-        qty: item.qty,
-        unit: item.unit,
-        rate: item.rate
-      }));
-      if (!state.builderLines.length) addLineItem();
       navigate('/desk');
-      showToast('Template copied. Review it on Scale Tickets.');
+      showToast('Open Scale Tickets to log loads for this plan.');
     }
 
     function computeBuilderTotals() {
@@ -2429,7 +2412,8 @@ async function signOutUser() {
 
     function updateBuilderBadge() {
       const n = state.builderLines.length;
-      el('builderCount').textContent = String(n);
+      const badge = el('builderCount');
+      if (badge) badge.textContent = String(n);
     }
 
     function createTemplate() {
