@@ -262,6 +262,15 @@ function setAuthModalDismissable(dismissable) {
   if (cancelBtn) cancelBtn.style.display = dismissable ? '' : 'none';
 }
 
+/** Removes login modal from view (drops `.open` → display:none). Call after every successful sign-in. */
+function closeAuthModal() {
+  const modal = el('authModal');
+  if (!modal) return;
+  modal.classList.remove('open');
+  modal.setAttribute('aria-hidden', 'true');
+  setAuthModalDismissable(true);
+}
+
 /** Header greeting: Settings → Name tab only (profiles.display_name). Never shows login email or username. */
 function navAccountGreeting(user) {
   if (!user) return 'Hi';
@@ -1568,12 +1577,12 @@ async function signOutUser() {
       navigate('/admin');
     }
 
-    function showToast(message) {
+    function showToast(message, durationMs = 2200) {
       const toast = el('toast');
       toast.textContent = message;
       toast.classList.add('show');
       clearTimeout(window.toastTimer);
-      window.toastTimer = setTimeout(() => toast.classList.remove('show'), 2200);
+      window.toastTimer = setTimeout(() => toast.classList.remove('show'), durationMs);
     }
 
     function getTemplateTotal(template) {
@@ -2041,10 +2050,13 @@ async function signOutUser() {
       }
 
       if (modal.classList.contains('open')) {
+        modal.setAttribute('aria-hidden', 'false');
         renderAuthTabs();
         syncAuthCopy();
         const canDismiss = offline || !!state.session;
         setAuthModalDismissable(canDismiss);
+      } else {
+        modal.setAttribute('aria-hidden', 'true');
       }
     }
 
@@ -2088,19 +2100,17 @@ async function signOutUser() {
           if (session && user) {
             state.session = session;
             state.user = user;
+            closeAuthModal();
+            showToast("You're signed in — account created.", 4500);
             try {
               await fetchUserProfile();
             } catch (e) {
               console.error(e);
             }
             updateAuthNav();
-            const modal = el('authModal');
-            if (modal) {
-              modal.classList.remove('open');
-              setAuthModalDismissable(true);
-            }
             applyRouteFromLocation();
-            showToast('Account created.');
+            const pwReg = el('authPassword');
+            if (pwReg) pwReg.value = '';
           } else {
             showToast('Check your email to confirm, then sign in.');
           }
@@ -2129,20 +2139,18 @@ async function signOutUser() {
           state.session = session;
           state.user = user;
 
+          closeAuthModal();
+          showToast('Signed in successfully.', 4500);
+
           try {
             await fetchUserProfile();
           } catch (e) {
             console.error(e);
           }
           updateAuthNav();
-
-          const modal = el('authModal');
-          if (modal) {
-            modal.classList.remove('open');
-            setAuthModalDismissable(true);
-          }
           applyRouteFromLocation();
-          showToast('Signed in.');
+          const pw = el('authPassword');
+          if (pw) pw.value = '';
         }
       } catch (err) {
         const msg = err.message || String(err);
@@ -2275,6 +2283,7 @@ async function signOutUser() {
         if (event === 'SIGNED_IN' && session?.user) {
           state.session = session;
           state.user = session.user;
+          closeAuthModal();
           await fetchUserProfile();
           updateAuthNav();
           try {
