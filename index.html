@@ -25,6 +25,7 @@
         <a href="/orders" data-route>Orders</a>
         <a href="/desk" data-route>Scale</a>
         <a href="/customer-accounts" data-route>Customer Accounts</a>
+        <a href="/stored-truck-tares" data-route>Stored Truck Tares</a>
         <a href="/admin" data-route>Admin</a>
         <a href="/settings" data-route>Settings</a>
       </nav>
@@ -96,14 +97,41 @@
               <p>Record the scale reading and the same job line details as <strong>Add order line</strong> (customer and tons ordered are required).</p>
               <div class="section-label" style="margin-top: 4px;">Scale ticket</div>
               <div class="field-grid-3">
-                <input id="scaleTruck" placeholder="Truck # / unit" autocomplete="off" />
-                <input id="scaleTicket" placeholder="Ticket # (auto 1, 2, 3…)" inputmode="numeric" autocomplete="off" />
-                <input id="scaleTime" type="time" />
-                <input id="scaleTareWeight" type="number" step="0.01" placeholder="Tare weight" />
-                <input id="scaleGrossWeight" type="number" step="0.01" placeholder="Gross Weight" />
-                <input id="scaleTotalMaterialWeight" type="number" step="0.01" placeholder="Total Material Weight" readonly />
-                <input id="scaleMaterial" placeholder="Material" list="scaleMaterialList" autocomplete="off" />
-                <input id="scaleOrderedTons" type="number" step="0.1" placeholder="Tons ordered" />
+                <div class="account-combo field-with-label">
+                  <label class="field-label" for="scaleTruckSearch">Truck Number</label>
+                  <input id="scaleTruckSearch" type="search" placeholder="Search trucks, then pick one..." autocomplete="off" />
+                  <div id="scaleTruckDropdown" class="account-dropdown" hidden role="listbox"></div>
+                  <input id="scaleTruckTareId" type="hidden" value="" />
+                  <p class="account-hint" id="scaleTruckHint">Search and select a stored truck tare, or type a truck number.</p>
+                </div>
+                <div class="field-with-label">
+                  <label class="field-label" for="scaleTicket">Scale Ticket #</label>
+                  <input id="scaleTicket" placeholder="Ticket # (auto 1, 2, 3…)" inputmode="numeric" autocomplete="off" />
+                </div>
+                <div class="field-with-label">
+                  <label class="field-label" for="scaleTime">Time</label>
+                  <input id="scaleTime" type="time" />
+                </div>
+                <div class="field-with-label">
+                  <label class="field-label" for="scaleTareWeight">Tare Weight</label>
+                  <input id="scaleTareWeight" type="number" step="0.01" placeholder="Tare weight" />
+                </div>
+                <div class="field-with-label">
+                  <label class="field-label" for="scaleGrossWeight">Gross Weight</label>
+                  <input id="scaleGrossWeight" type="number" step="0.01" placeholder="Gross Weight" />
+                </div>
+                <div class="field-with-label">
+                  <label class="field-label" for="scaleTotalMaterialWeight">Total Material Weight</label>
+                  <input id="scaleTotalMaterialWeight" type="number" step="0.01" placeholder="Total Material Weight" readonly />
+                </div>
+                <div class="field-with-label">
+                  <label class="field-label" for="scaleMaterial">Material</label>
+                  <input id="scaleMaterial" placeholder="Material" list="scaleMaterialList" autocomplete="off" />
+                </div>
+                <div class="field-with-label">
+                  <label class="field-label" for="scaleOrderedTons">Tons Ordered</label>
+                  <input id="scaleOrderedTons" type="number" step="0.1" placeholder="Tons ordered" />
+                </div>
               </div>
               <datalist id="scaleMaterialList">
                 <option value="1-1/2 base"></option>
@@ -121,15 +149,25 @@
                 <p class="account-hint" id="scaleAccountHint">Search and select a customer account.</p>
               </div>
               <div class="field-grid-3">
-                <input id="scaleJob" placeholder="Job / drop" autocomplete="off" />
-                <input id="scaleLoads" type="number" step="1" placeholder="Loads planned" />
-                <select id="scaleStatus">
-                  <option value="Scheduled">Scheduled</option>
-                  <option value="Loading">Loading</option>
-                  <option value="Delivered">Delivered</option>
-                </select>
+                <div class="field-with-label">
+                  <label class="field-label" for="scaleJob">Job / Drop</label>
+                  <input id="scaleJob" placeholder="Job / drop" autocomplete="off" />
+                </div>
+                <div class="field-with-label">
+                  <label class="field-label" for="scaleLoads">Loads Planned</label>
+                  <input id="scaleLoads" type="number" step="1" placeholder="Loads planned" />
+                </div>
+                <div class="field-with-label">
+                  <label class="field-label" for="scaleStatus">Status</label>
+                  <select id="scaleStatus">
+                    <option value="Scheduled">Scheduled</option>
+                    <option value="Loading">Loading</option>
+                    <option value="Delivered">Delivered</option>
+                  </select>
+                </div>
               </div>
-              <div style="margin-top:12px;">
+              <div class="field-with-label" style="margin-top:12px;">
+                <label class="field-label" for="scaleNotes">Notes</label>
                 <textarea id="scaleNotes" placeholder="Dispatcher notes, PO #, moisture, reject, split load..."></textarea>
               </div>
               <div class="action-row">
@@ -161,18 +199,37 @@
               <h3>Orders for <span id="deskDateLabelOrders">this day</span></h3>
               <p>Plan loads and tons by customer for the selected calendar date.</p>
               <div class="field-grid-3">
-                <input id="orderCustomer" placeholder="Customer" autocomplete="off" />
-                <input id="orderJob" placeholder="Job / drop" autocomplete="off" />
-                <input id="orderMaterial" placeholder="Material" autocomplete="off" />
-                <input id="orderTons" type="number" step="0.1" placeholder="Tons ordered" />
-                <input id="orderLoads" type="number" step="1" placeholder="Loads planned" />
-                <select id="orderStatus">
-                  <option value="Scheduled">Scheduled</option>
-                  <option value="Loading">Loading</option>
-                  <option value="Delivered">Delivered</option>
-                </select>
+                <div class="field-with-label">
+                  <label class="field-label" for="orderCustomer">Customer</label>
+                  <input id="orderCustomer" placeholder="Customer" autocomplete="off" />
+                </div>
+                <div class="field-with-label">
+                  <label class="field-label" for="orderJob">Job / Drop</label>
+                  <input id="orderJob" placeholder="Job / drop" autocomplete="off" />
+                </div>
+                <div class="field-with-label">
+                  <label class="field-label" for="orderMaterial">Material</label>
+                  <input id="orderMaterial" placeholder="Material" autocomplete="off" />
+                </div>
+                <div class="field-with-label">
+                  <label class="field-label" for="orderTons">Tons Ordered</label>
+                  <input id="orderTons" type="number" step="0.1" placeholder="Tons ordered" />
+                </div>
+                <div class="field-with-label">
+                  <label class="field-label" for="orderLoads">Loads Planned</label>
+                  <input id="orderLoads" type="number" step="1" placeholder="Loads planned" />
+                </div>
+                <div class="field-with-label">
+                  <label class="field-label" for="orderStatus">Status</label>
+                  <select id="orderStatus">
+                    <option value="Scheduled">Scheduled</option>
+                    <option value="Loading">Loading</option>
+                    <option value="Delivered">Delivered</option>
+                  </select>
+                </div>
               </div>
-              <div style="margin-top:12px;">
+              <div class="field-with-label" style="margin-top:12px;">
+                <label class="field-label" for="orderNotes">Notes</label>
                 <textarea id="orderNotes" placeholder="Dispatcher notes, PO #, pit restrictions..."></textarea>
               </div>
               <div class="action-row">
@@ -224,10 +281,22 @@
                     <input type="hidden" id="soAccountId" value="" />
                     <p class="account-hint" id="soAccountHint">Search and select a customer account.</p>
                   </div>
-                  <input id="soName" placeholder="Customer name" autocomplete="off" />
-                  <input id="soPhone" type="tel" placeholder="Customer phone" autocomplete="tel" />
-                  <input id="soAddress" class="span-2" placeholder="Jobsite address" autocomplete="street-address" />
-                  <textarea id="soNotes" class="span-2" placeholder="Order notes — material, tons, timing, special instructions…" rows="3"></textarea>
+                  <div class="field-with-label">
+                    <label class="field-label" for="soName">Customer Name</label>
+                    <input id="soName" placeholder="Customer name" autocomplete="off" />
+                  </div>
+                  <div class="field-with-label">
+                    <label class="field-label" for="soPhone">Customer Phone</label>
+                    <input id="soPhone" type="tel" placeholder="Customer phone" autocomplete="tel" />
+                  </div>
+                  <div class="field-with-label span-2">
+                    <label class="field-label" for="soAddress">Jobsite Address</label>
+                    <input id="soAddress" class="span-2" placeholder="Jobsite address" autocomplete="street-address" />
+                  </div>
+                  <div class="field-with-label span-2">
+                    <label class="field-label" for="soNotes">Order Notes</label>
+                    <textarea id="soNotes" class="span-2" placeholder="Order notes — material, tons, timing, special instructions…" rows="3"></textarea>
+                  </div>
                 </div>
                 <div class="action-row" style="margin-top: 14px;">
                   <button type="button" class="primary-btn" onclick="addSalesOrder()">Add order</button>
@@ -503,6 +572,39 @@
             <input id="customerAccountsSearchInput" type="search" placeholder="Type to filter customer accounts..." autocomplete="off" />
           </div>
           <div id="customerAccountsList" class="settings-accounts-list" style="margin-top: 14px;"></div>
+        </section>
+      </section>
+
+      <section id="storedTruckTaresView" class="view">
+        <div class="section-top">
+          <div>
+            <div class="section-label">Stored truck tares</div>
+            <h2>Manage truck tare weights</h2>
+            <p style="color: var(--muted); margin-top: 10px; font-size: 14px; max-width: 680px;">Select a stored truck on Scale tickets to auto-fill the Tare Weight field.</p>
+          </div>
+          <button type="button" class="ghost-btn" onclick="navigate('/')">Back home</button>
+        </div>
+
+        <section class="panel box">
+          <div class="field-grid-3" style="margin-top: 0;">
+            <div class="field-with-label">
+              <label class="field-label" for="newTruckNumber">Truck Number</label>
+              <input id="newTruckNumber" placeholder="e.g. T-104" autocomplete="off" />
+            </div>
+            <div class="field-with-label">
+              <label class="field-label" for="newTruckTareWeight">Tare Weight</label>
+              <input id="newTruckTareWeight" type="number" step="0.01" placeholder="e.g. 14.50" />
+            </div>
+            <div class="field-with-label" style="justify-content: flex-end;">
+              <label class="field-label" for="addTruckTareBtn">Action</label>
+              <button id="addTruckTareBtn" type="button" class="primary-btn" onclick="addStoredTruckTare()">Add truck tare</button>
+            </div>
+          </div>
+          <div class="account-combo" style="max-width: 520px; margin-top: 14px;">
+            <label class="section-label" for="truckTaresSearchInput">Search stored trucks</label>
+            <input id="truckTaresSearchInput" type="search" placeholder="Type truck number to filter..." autocomplete="off" />
+          </div>
+          <div id="storedTruckTaresList" class="settings-accounts-list" style="margin-top: 14px;"></div>
         </section>
       </section>
 

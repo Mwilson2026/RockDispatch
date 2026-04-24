@@ -927,6 +927,21 @@
       margin-top: 16px;
     }
 
+    .field-with-label {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .field-label {
+      font-size: 11px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--muted-2);
+      font-weight: 600;
+      margin-bottom: 0;
+    }
+
     .orders-board-section {
       margin-top: 28px;
     }

@@ -72,6 +72,7 @@ const baseTemplates = [
     const STORAGE_ORDERS = 'rockDispatch_dailyOrders_v1';
     const STORAGE_SALES_ORDERS = 'rockDispatch_salesOrders_v1';
     const STORAGE_CUSTOMER_ACCOUNTS = 'rockDispatch_customerAccounts_v1';
+    const STORAGE_TRUCK_TARES = 'rockDispatch_truckTares_v1';
     const STORAGE_PROFILE_DISPLAY_PREFIX = 'rockDispatch_profileDisplayName:v1:';
 
     function readStoredProfileDisplayName(uid) {
@@ -135,7 +136,10 @@ const baseTemplates = [
       customerAccounts: [],
       selectedCustomerAccountId: null,
       selectedScaleCustomerAccountId: null,
-      customerAccountsSearchQuery: ''
+      customerAccountsSearchQuery: '',
+      truckTares: [],
+      selectedScaleTruckTareId: null,
+      truckTaresSearchQuery: ''
     };
 
     (function initOrdersBoardDefaults() {
@@ -838,6 +842,24 @@ async function signOutUser() {
       return false;
     }
 
+    function loadTruckTaresStorage() {
+      try {
+        const raw = localStorage.getItem(STORAGE_TRUCK_TARES);
+        if (raw) state.truckTares = JSON.parse(raw);
+        if (!Array.isArray(state.truckTares)) state.truckTares = [];
+      } catch (e) {
+        state.truckTares = [];
+      }
+    }
+
+    function persistTruckTares() {
+      try {
+        localStorage.setItem(STORAGE_TRUCK_TARES, JSON.stringify(state.truckTares));
+        return true;
+      } catch (e) {}
+      return false;
+    }
+
     function setTheme(theme) {
       const t = theme === 'light' ? 'light' : 'dark';
       document.documentElement.dataset.theme = t;
@@ -884,9 +906,29 @@ async function signOutUser() {
       if (dd) dd.hidden = true;
     }
 
+    function clearScaleTruckSelection() {
+      state.selectedScaleTruckTareId = null;
+      const hid = el('scaleTruckTareId');
+      const search = el('scaleTruckSearch');
+      const hint = el('scaleTruckHint');
+      if (hid) hid.value = '';
+      if (search) search.value = '';
+      if (hint)
+        hint.textContent = state.truckTares.length
+          ? 'Search and select a stored truck tare, or type a truck number.'
+          : 'No stored truck tares yet — add one on Stored Truck Tares page.';
+      const dd = el('scaleTruckDropdown');
+      if (dd) dd.hidden = true;
+    }
+
     function getFilteredCustomerAccounts(query) {
       const q = String(query || '').trim().toLowerCase();
       return state.customerAccounts.filter((a) => !q || a.name.toLowerCase().includes(q));
+    }
+
+    function getFilteredTruckTares(query) {
+      const q = String(query || '').trim().toLowerCase();
+      return state.truckTares.filter((t) => !q || t.truck.toLowerCase().includes(q));
     }
 
     function renderAccountDropdown() {
@@ -933,6 +975,28 @@ async function signOutUser() {
       dd.hidden = items.length === 0;
     }
 
+    function renderScaleTruckDropdown() {
+      const dd = el('scaleTruckDropdown');
+      if (!dd) return;
+      const items = getFilteredTruckTares(el('scaleTruckSearch')?.value || '');
+      dd.innerHTML = '';
+      items.forEach((t) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'account-option';
+        btn.setAttribute('role', 'option');
+        btn.dataset.id = t.id;
+        btn.textContent = `${t.truck} · tare ${Number(t.tareWeight).toFixed(2)}`;
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          selectScaleTruckTare(t.id);
+        });
+        dd.appendChild(btn);
+      });
+      dd.hidden = items.length === 0;
+    }
+
     function selectCustomerAccount(id) {
       const acc = state.customerAccounts.find((x) => x.id === id);
       if (!acc) return;
@@ -958,6 +1022,23 @@ async function signOutUser() {
       if (search) search.value = acc.name;
       if (hint) hint.textContent = `Selected: ${acc.name}`;
       const dd = el('scaleAccountDropdown');
+      if (dd) dd.hidden = true;
+    }
+
+    function selectScaleTruckTare(id) {
+      const t = state.truckTares.find((x) => x.id === id);
+      if (!t) return;
+      state.selectedScaleTruckTareId = id;
+      const hid = el('scaleTruckTareId');
+      const search = el('scaleTruckSearch');
+      const hint = el('scaleTruckHint');
+      if (hid) hid.value = id;
+      if (search) search.value = t.truck;
+      if (hint) hint.textContent = `Selected: ${t.truck} (tare ${Number(t.tareWeight).toFixed(2)})`;
+      const tareEl = el('scaleTareWeight');
+      if (tareEl && document.activeElement !== tareEl) tareEl.value = Number(t.tareWeight).toFixed(2);
+      syncScaleMaterialWeight();
+      const dd = el('scaleTruckDropdown');
       if (dd) dd.hidden = true;
     }
 
@@ -1455,8 +1536,107 @@ async function signOutUser() {
       renderCustomerAccountsList();
     }
 
+    function renderStoredTruckTaresList() {
+      const wrap = el('storedTruckTaresList');
+      if (!wrap) return;
+      const q = String(state.truckTaresSearchQuery || '').trim().toLowerCase();
+      const rows = state.truckTares.filter((t) => !q || t.truck.toLowerCase().includes(q));
+      if (!rows.length) {
+        wrap.innerHTML = '<div class="empty-state">No stored truck tares yet. Add one above.</div>';
+        return;
+      }
+      wrap.innerHTML = '';
+      rows.forEach((t) => {
+        const row = document.createElement('div');
+        row.className = 'settings-account-row';
+        row.innerHTML = `
+          <span class="name">${escapeHtml(t.truck)} <span style="color:var(--muted-2); font-weight:500;">(tare ${Number(t.tareWeight).toFixed(2)})</span></span>
+          <div class="settings-account-actions">
+            <button type="button" class="ghost-btn mini-remove" data-edit="${escapeHtml(t.id)}">Edit</button>
+            <button type="button" class="ghost-btn mini-remove" data-del="${escapeHtml(t.id)}">Delete</button>
+          </div>
+        `;
+        row.querySelector('[data-edit]')?.addEventListener('click', () => editStoredTruckTare(t.id));
+        row.querySelector('[data-del]')?.addEventListener('click', () => deleteStoredTruckTare(t.id));
+        wrap.appendChild(row);
+      });
+    }
+
+    function renderStoredTruckTaresPage() {
+      const search = el('truckTaresSearchInput');
+      if (search && document.activeElement !== search) {
+        search.value = state.truckTaresSearchQuery || '';
+      }
+      renderStoredTruckTaresList();
+    }
+
+    function addStoredTruckTare() {
+      const truck = (el('newTruckNumber')?.value || '').trim();
+      const tareRaw = parseFloat(el('newTruckTareWeight')?.value || '');
+      if (!truck || Number.isNaN(tareRaw)) {
+        showToast('Enter truck number and tare weight.');
+        return;
+      }
+      if (state.truckTares.some((t) => t.truck.toLowerCase() === truck.toLowerCase())) {
+        showToast('That truck already exists. Use Edit instead.');
+        return;
+      }
+      state.truckTares.push({ id: `TR-${Date.now()}`, truck, tareWeight: tareRaw });
+      if (!persistTruckTares()) {
+        showToast('Could not save stored truck tares.');
+        return;
+      }
+      loadTruckTaresStorage();
+      const tn = el('newTruckNumber');
+      const tw = el('newTruckTareWeight');
+      if (tn) tn.value = '';
+      if (tw) tw.value = '';
+      renderStoredTruckTaresList();
+      renderScaleTruckDropdown();
+      clearScaleTruckSelection();
+      showToast('Stored truck tare added.');
+    }
+
+    function editStoredTruckTare(id) {
+      const row = state.truckTares.find((t) => t.id === id);
+      if (!row) return;
+      const nextTruck = window.prompt('Truck number', row.truck);
+      if (nextTruck == null) return;
+      const truck = nextTruck.trim();
+      if (!truck) {
+        showToast('Truck number cannot be empty.');
+        return;
+      }
+      const nextTare = window.prompt('Tare weight', String(row.tareWeight));
+      if (nextTare == null) return;
+      const tare = parseFloat(nextTare);
+      if (Number.isNaN(tare)) {
+        showToast('Enter a valid tare weight.');
+        return;
+      }
+      row.truck = truck;
+      row.tareWeight = tare;
+      persistTruckTares();
+      loadTruckTaresStorage();
+      renderStoredTruckTaresList();
+      renderScaleTruckDropdown();
+      if (state.selectedScaleTruckTareId === id) selectScaleTruckTare(id);
+      showToast('Stored truck tare updated.');
+    }
+
+    function deleteStoredTruckTare(id) {
+      if (!window.confirm('Delete this stored truck tare?')) return;
+      state.truckTares = state.truckTares.filter((t) => t.id !== id);
+      persistTruckTares();
+      loadTruckTaresStorage();
+      renderStoredTruckTaresList();
+      renderScaleTruckDropdown();
+      if (state.selectedScaleTruckTareId === id) clearScaleTruckSelection();
+      showToast('Stored truck tare removed.');
+    }
+
     function clearScaleForm() {
-      el('scaleTruck').value = '';
+      clearScaleTruckSelection();
       const tickEl = el('scaleTicket');
       if (tickEl) tickEl.value = String(nextScaleTicketNumberForDate(state.deskDate));
       clearScaleAccountSelection();
@@ -1475,7 +1655,7 @@ async function signOutUser() {
     }
 
     function addScaleTicket() {
-      const truck = el('scaleTruck').value.trim();
+      const truck = (el('scaleTruckSearch')?.value || '').trim();
       const tareWeight = parseFloat(el('scaleTareWeight').value);
       const grossWeight = parseFloat(el('scaleGrossWeight').value);
       const totalMaterialWeight = parseFloat(el('scaleTotalMaterialWeight').value);
@@ -1484,7 +1664,7 @@ async function signOutUser() {
       const customer = (accRecord ? accRecord.name : (el('scaleAccountSearch')?.value ?? '')).trim();
       const orderedTons = parseFloat(el('scaleOrderedTons').value);
       if (!truck || Number.isNaN(tareWeight) || Number.isNaN(grossWeight) || Number.isNaN(totalMaterialWeight)) {
-        showToast('Enter truck #, tare weight, and gross weight.');
+        showToast('Enter truck number, tare weight, and gross weight.');
         return;
       }
       if (grossWeight < tareWeight) {
@@ -1695,6 +1875,13 @@ async function signOutUser() {
       const scaleHint = el('scaleAccountHint');
       if (scaleHint && !state.selectedScaleCustomerAccountId) scaleHint.textContent = accountHintText();
       renderScaleAccountDropdown();
+      const truckHint = el('scaleTruckHint');
+      if (truckHint && !state.selectedScaleTruckTareId) {
+        truckHint.textContent = state.truckTares.length
+          ? 'Search and select a stored truck tare, or type a truck number.'
+          : 'No stored truck tares yet — add one on Stored Truck Tares page.';
+      }
+      renderScaleTruckDropdown();
     }
 
     function syncScaleMaterialWeight() {
@@ -1735,6 +1922,7 @@ async function signOutUser() {
       if (raw === '/loads' || raw === '/orders') return { page: 'orders' };
       if (raw === '/desk') return { page: 'desk' };
       if (raw === '/customer-accounts') return { page: 'customer-accounts' };
+      if (raw === '/stored-truck-tares') return { page: 'stored-truck-tares' };
       if (raw === '/settings') return { page: 'settings' };
       if (raw === '/builder') return { page: 'builder' };
       if (raw === '/admin') return { page: 'admin' };
@@ -1772,7 +1960,7 @@ async function signOutUser() {
       const normalized = pathname.replace(/\/$/, '') || '/';
       const known =
         normalized === '/' ||
-        ['/desk', '/loads', '/orders', '/customer-accounts', '/settings', '/builder', '/admin'].includes(normalized) ||
+        ['/desk', '/loads', '/orders', '/customer-accounts', '/stored-truck-tares', '/settings', '/builder', '/admin'].includes(normalized) ||
         normalized.startsWith('/load/');
       if (!known) {
         history.replaceState(null, '', '/');
@@ -1816,6 +2004,11 @@ async function signOutUser() {
           renderCustomerAccountsPage();
           switchView('customerAccountsView');
           updateNavActive('/customer-accounts');
+          break;
+        case 'stored-truck-tares':
+          renderStoredTruckTaresPage();
+          switchView('storedTruckTaresView');
+          updateNavActive('/stored-truck-tares');
           break;
         case 'builder':
           renderBuilder();
@@ -2481,6 +2674,11 @@ async function signOutUser() {
     if (scaleTareWeight) scaleTareWeight.addEventListener('input', () => syncScaleMaterialWeight());
     const scaleGrossWeight = el('scaleGrossWeight');
     if (scaleGrossWeight) scaleGrossWeight.addEventListener('input', () => syncScaleMaterialWeight());
+    const scaleTruckSearch = el('scaleTruckSearch');
+    if (scaleTruckSearch) {
+      scaleTruckSearch.addEventListener('input', () => renderScaleTruckDropdown());
+      scaleTruckSearch.addEventListener('focus', () => renderScaleTruckDropdown());
+    }
 
     let scaleTimeLiveIntervalId = null;
     if (scaleTimeLiveIntervalId == null) {
@@ -2513,12 +2711,21 @@ async function signOutUser() {
         renderCustomerAccountsList();
       });
     }
+    const truckTaresSearchInput = el('truckTaresSearchInput');
+    if (truckTaresSearchInput) {
+      truckTaresSearchInput.addEventListener('input', (e) => {
+        state.truckTaresSearchQuery = e.target.value;
+        renderStoredTruckTaresList();
+      });
+    }
     document.addEventListener('click', (e) => {
       if (!e.target.closest?.('.account-combo')) {
         const dd = el('soAccountDropdown');
         if (dd) dd.hidden = true;
         const sdd = el('scaleAccountDropdown');
         if (sdd) sdd.hidden = true;
+        const tdd = el('scaleTruckDropdown');
+        if (tdd) tdd.hidden = true;
       }
     });
 
@@ -2556,6 +2763,7 @@ async function signOutUser() {
       setTheme,
       selectCustomerAccount,
       addCustomerAccount,
+      addStoredTruckTare,
       saveGreetingName,
       changeProfilePassword
     });
@@ -2567,6 +2775,7 @@ async function signOutUser() {
         loadDeskStorage();
         loadSalesOrdersStorage();
         loadCustomerAccountsStorage();
+        loadTruckTaresStorage();
         seedDeskIfEmpty();
         updateAuthNav();
         initRouter();
@@ -2583,6 +2792,7 @@ async function signOutUser() {
           loadDeskStorage();
           loadSalesOrdersStorage();
           loadCustomerAccountsStorage();
+          loadTruckTaresStorage();
           seedDeskIfEmpty();
           updateAuthNav();
           toggleAuth(true);
@@ -2600,6 +2810,7 @@ async function signOutUser() {
           try {
             await loadCloudData();
             loadCustomerAccountsStorage();
+            loadTruckTaresStorage();
             persistDesk();
           } catch (err) {
             console.error(err);
@@ -2623,12 +2834,14 @@ async function signOutUser() {
           persistDesk();
           loadSalesOrdersStorage();
           loadCustomerAccountsStorage();
+          loadTruckTaresStorage();
         } catch (err) {
           console.error(err);
           showToast('Could not load Supabase — using saved browser data.');
           loadDeskStorage();
           loadSalesOrdersStorage();
           loadCustomerAccountsStorage();
+          loadTruckTaresStorage();
           seedDeskIfEmpty();
         }
       } else {
@@ -2636,6 +2849,7 @@ async function signOutUser() {
         loadDeskStorage();
         loadSalesOrdersStorage();
         loadCustomerAccountsStorage();
+        loadTruckTaresStorage();
         seedDeskIfEmpty();
         toggleAuth(true);
         setAuthModalDismissable(false);
