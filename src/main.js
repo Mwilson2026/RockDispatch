@@ -83,6 +83,31 @@ const baseTemplates = [
     const STORAGE_ORDERS = 'rockDispatch_dailyOrders_v1';
     const STORAGE_SALES_ORDERS = 'rockDispatch_salesOrders_v1';
     const STORAGE_CUSTOMER_ACCOUNTS = 'rockDispatch_customerAccounts_v1';
+    const STORAGE_PROFILE_DISPLAY_PREFIX = 'rockDispatch_profileDisplayName:v1:';
+
+    function readStoredProfileDisplayName(uid) {
+      if (!uid) return null;
+      try {
+        const v = localStorage.getItem(STORAGE_PROFILE_DISPLAY_PREFIX + uid);
+        if (typeof v !== 'string') return null;
+        const t = v.trim();
+        return t.length ? t : null;
+      } catch {
+        return null;
+      }
+    }
+
+    function writeStoredProfileDisplayName(uid, name) {
+      if (!uid) return;
+      try {
+        const key = STORAGE_PROFILE_DISPLAY_PREFIX + uid;
+        const trimmed = typeof name === 'string' ? name.trim() : '';
+        if (trimmed) localStorage.setItem(key, trimmed);
+        else localStorage.removeItem(key);
+      } catch (e) {
+        console.warn('[Rock Dispatch] Could not cache display name locally.', e);
+      }
+    }
 
     function seedLocalBaseTemplates() {
       return structuredClone(baseTemplates).map((b) => ({
@@ -158,7 +183,8 @@ const baseTemplates = [
         return;
       }
       const uid = state.session.user.id;
-      const metaName = displayNameFromUser(state.session.user);
+      const metaName =
+        displayNameFromUser(state.session.user) ?? readStoredProfileDisplayName(uid);
 
       let { data, error } = await supabaseClient
         .from('profiles')
@@ -916,14 +942,19 @@ async function signOutUser() {
       const raw = (inp?.value ?? '').trim();
       const display_name = raw.length ? raw : null;
 
-      const { error: authErr } = await supabaseClient.auth.updateUser({
+      const { data: authUpdateData, error: authErr } = await supabaseClient.auth.updateUser({
         data: { display_name }
       });
 
-      const { data: sessionWrap } = await supabaseClient.auth.getSession();
-      if (sessionWrap?.session) {
-        state.session = sessionWrap.session;
-        state.user = sessionWrap.session.user;
+      if (authUpdateData?.user && state.session) {
+        state.session = { ...state.session, user: authUpdateData.user };
+        state.user = authUpdateData.user;
+      } else {
+        const { data: sessionWrap } = await supabaseClient.auth.getSession();
+        if (sessionWrap?.session) {
+          state.session = sessionWrap.session;
+          state.user = sessionWrap.session.user;
+        }
       }
 
       const res = await supabaseClient
@@ -949,7 +980,10 @@ async function signOutUser() {
           res.error
         );
 
-      state.profileDisplayName = raw.length ? raw : displayNameFromUser(state.session.user);
+      writeStoredProfileDisplayName(uid, raw.length ? raw : null);
+
+      state.profileDisplayName =
+        raw.length ? raw : displayNameFromUser(state.session.user) ?? readStoredProfileDisplayName(uid);
       await fetchUserProfile();
       updateAuthNav();
       updateDashboardGreeting();
