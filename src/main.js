@@ -873,23 +873,43 @@ async function signOutUser() {
         showToast('Sign in to save your name.');
         return;
       }
+      const uid = state.session.user.id;
       const inp = el('settingsDisplayNameInput');
       const raw = (inp?.value ?? '').trim();
       const display_name = raw.length ? raw : null;
-      const { error } = await supabaseClient
+
+      const updated = await supabaseClient
         .from('profiles')
         .update({ display_name })
-        .eq('id', state.session.user.id);
+        .eq('id', uid)
+        .select('id');
+
+      let error = updated.error;
+      const rows = updated.data;
+
+      if (!error && (!rows || rows.length === 0)) {
+        const inserted = await supabaseClient
+          .from('profiles')
+          .insert({ id: uid, display_name })
+          .select('id');
+        error = inserted.error;
+      }
+
       if (error) {
         console.error(error);
         showToast(
           error.message +
-            (/display_name|column/i.test(error.message) ? ' Run the profiles migration (display_name) in Supabase.' : '')
+            (/display_name|column|policy|permission|RLS|row-level/i.test(String(error.message))
+              ? ' Run Supabase migrations for profiles (display_name + profiles_insert_own).'
+              : '')
         );
         return;
       }
+
       state.profileDisplayName = display_name;
       updateAuthNav();
+      updateDashboardGreeting();
+      renderSettingsPage();
       showToast('Name saved.');
     }
 
