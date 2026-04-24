@@ -1975,7 +1975,6 @@ async function signOutUser() {
       if (raw === '/customer-accounts') return { page: 'customer-accounts' };
       if (raw === '/stored-truck-tares') return { page: 'stored-truck-tares' };
       if (raw === '/settings') return { page: 'settings' };
-      if (raw === '/builder') return { page: 'builder' };
       if (raw === '/admin') return { page: 'admin' };
       if (raw.startsWith('/load/')) {
         let tid = raw.slice('/load/'.length);
@@ -2011,7 +2010,7 @@ async function signOutUser() {
       const normalized = pathname.replace(/\/$/, '') || '/';
       const known =
         normalized === '/' ||
-        ['/desk', '/loads', '/orders', '/customer-accounts', '/stored-truck-tares', '/settings', '/builder', '/admin'].includes(normalized) ||
+        ['/desk', '/loads', '/orders', '/customer-accounts', '/stored-truck-tares', '/settings', '/admin'].includes(normalized) ||
         normalized.startsWith('/load/');
       if (!known) {
         history.replaceState(null, '', '/');
@@ -2060,11 +2059,6 @@ async function signOutUser() {
           renderStoredTruckTaresPage();
           switchView('storedTruckTaresView');
           updateNavActive('/stored-truck-tares');
-          break;
-        case 'builder':
-          renderBuilder();
-          switchView('builderView');
-          updateNavActive('/builder');
           break;
         case 'admin':
           renderAdmin();
@@ -2120,10 +2114,6 @@ async function signOutUser() {
 
     function openDetail(id) {
       navigate(`/load/${encodeURIComponent(id)}`);
-    }
-
-    function openBuilder() {
-      navigate('/builder');
     }
 
     function openAdmin() {
@@ -2225,7 +2215,7 @@ async function signOutUser() {
           <div class="quote-price">${formatMoney(total)}</div>
           <div class="action-row" style="margin-top: 18px;">
             <button type="button" class="mini-btn" onclick="openDetail(${JSON.stringify(template.tid)})">Open</button>
-            <button type="button" class="ghost-btn" onclick="openBuilder()">Dispatch sheet</button>
+            <button type="button" class="ghost-btn" onclick="navigate('/desk')">Scale Tickets</button>
           </div>
         `;
         gridEl.appendChild(card);
@@ -2327,8 +2317,8 @@ async function signOutUser() {
         rate: item.rate
       }));
       if (!state.builderLines.length) addLineItem();
-      openBuilder();
-      showToast('Template copied into dispatch builder.');
+      navigate('/desk');
+      showToast('Template copied. Review it on Scale Tickets.');
     }
 
     function computeBuilderTotals() {
@@ -2787,7 +2777,6 @@ async function signOutUser() {
       navigate,
       goHome,
       openDetail,
-      openBuilder,
       openAdmin,
       toggleAuth,
       toggleHeaderMenu,

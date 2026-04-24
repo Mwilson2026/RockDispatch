@@ -35,14 +35,10 @@
             Menu
           </button>
           <div id="headerMenuDropdown" class="header-menu-dropdown" hidden>
-            <a href="/" data-route>Home</a>
             <a href="/orders" data-route>Orders</a>
-            <a href="/desk" data-route>Scale</a>
-            <a href="/customer-accounts" data-route>Customer Accounts</a>
+            <a href="/desk" data-route>Scale Tickets</a>
             <a href="/stored-truck-tares" data-route>Stored Truck Tares</a>
-            <a href="/builder" data-route>Dispatch Builder</a>
-            <a href="/admin" data-route>Admin</a>
-            <a href="/settings" data-route>Settings</a>
+            <a href="/customer-accounts" data-route>Customer Accounts</a>
             <button type="button" id="headerMenuLoginAction" onclick="closeHeaderMenu(); toggleAuth(true)">Login</button>
             <button type="button" id="headerMenuLogoutAction" onclick="closeHeaderMenu(); signOutUser()" hidden>Log out</button>
           </div>
@@ -59,16 +55,12 @@
           <div class="arc-home__inner">
             <p class="arc-home__eyebrow">Aggregate · asphalt · haul</p>
             <p class="arc-home__dashboard-greet" id="homeDashboardGreeting" hidden></p>
-            <h1 class="arc-home__title">
-              <span class="arc-home__word arc-home__word--1">American</span>
-              <span class="arc-home__amp" aria-hidden="true">&amp;</span>
-              <span class="arc-home__word arc-home__word--2">R&amp;C</span>
-            </h1>
+            <h1 class="arc-home__title">American R&amp;C</h1>
             <p class="arc-home__tagline">Rock-solid dispatch for quarries and construction — tonnage, timing, and trucks in one place.</p>
             <div class="arc-home__actions">
               <button type="button" class="primary-btn arc-home__cta" onclick="navigate('/orders')">Orders board</button>
-              <button type="button" class="ghost-btn arc-home__cta2" onclick="navigate('/desk')">Scale</button>
-              <button type="button" class="ghost-btn arc-home__cta2" onclick="navigate('/builder')">Dispatch builder</button>
+              <button type="button" class="ghost-btn arc-home__cta2" onclick="navigate('/desk')">Scale Tickets</button>
+              <button type="button" class="ghost-btn arc-home__cta2" onclick="navigate('/stored-truck-tares')">Stored Truck Tares</button>
             </div>
             <ul class="arc-home__features" aria-label="Highlights">
               <li class="arc-home__feature">
@@ -77,11 +69,11 @@
               </li>
               <li class="arc-home__feature">
                 <span class="arc-home__feature-icon" aria-hidden="true">◆</span>
-                <span><strong>Scale house</strong> — tickets and daily tons</span>
+                <span><strong>Scale Tickets</strong> — tickets and daily tons</span>
               </li>
               <li class="arc-home__feature">
                 <span class="arc-home__feature-icon" aria-hidden="true">◆</span>
-                <span><strong>Dispatch</strong> — haul sheets and issued quotes</span>
+                <span><strong>Stored Truck Tares</strong> — saved truck tare weights for auto-fill</span>
               </li>
             </ul>
           </div>
@@ -394,70 +386,6 @@
               <button type="button" class="ghost-btn" onclick="toggleSaveCurrentTemplate()" id="detailSaveBtn">Pin</button>
             </div>
             <div class="summary-list" id="detailSpecs"></div>
-          </aside>
-        </div>
-      </section>
-
-      <section id="builderView" class="view">
-        <div class="section-top">
-          <div>
-            <div class="section-label">Dispatch builder</div>
-            <h2>Build a haul sheet</h2>
-          </div>
-          <button type="button" class="ghost-btn" onclick="navigate('/')">Back home</button>
-        </div>
-
-        <div class="builder-grid">
-          <div class="stack">
-            <div class="panel box">
-              <h3>Customer &amp; site</h3>
-              <p>Who is buying material, where it is going, and when the window closes.</p>
-              <div class="field-grid">
-                <input id="quoteCustomer" placeholder="Customer / contractor" />
-                <input id="quoteCompany" placeholder="Company" />
-                <input id="quoteProject" placeholder="Job name" />
-                <input id="quoteLocation" placeholder="Drop location" />
-                <input id="quoteNumber" placeholder="Dispatch / quote #" />
-                <input id="quoteDate" placeholder="Dispatch date" />
-                <input id="quoteExpiry" placeholder="Load window ends" />
-                <input id="quoteTerms" placeholder="Payment / billing terms" />
-              </div>
-            </div>
-
-            <div class="panel box">
-              <div class="row-between">
-                <div>
-                  <h3>Line items</h3>
-                  <p>Tons, loads, hourly trucking, fuel, scale fees—whatever your pit quotes.</p>
-                </div>
-                <button type="button" class="mini-btn" onclick="addLineItem()">Add line</button>
-              </div>
-              <div class="quote-lines" id="quoteLines"></div>
-            </div>
-
-            <div class="panel box">
-              <h3>Notes &amp; scope</h3>
-              <div class="field-grid">
-                <textarea id="quoteNotes" placeholder="Traffic staging, moisture, rejected loads, DOT restrictions, fuel surcharge language..."></textarea>
-                <textarea id="quoteScope" placeholder="Material spec, testing, moisture limits, alternate pits..."></textarea>
-              </div>
-              <div class="action-row">
-                <button type="button" class="primary-btn" onclick="saveQuoteDraft()">Save draft</button>
-                <button type="button" class="ghost-btn" onclick="seedQuoteDemo()">Fill demo</button>
-              </div>
-            </div>
-          </div>
-
-          <aside class="panel box">
-            <h3>Haul summary</h3>
-            <div class="summary-row"><span>Subtotal</span><strong id="summarySubtotal">$0</strong></div>
-            <div class="summary-row"><span>Tax</span><strong id="summaryTax">$0</strong></div>
-            <div class="summary-row"><span>Fees</span><strong id="summaryFees">$0</strong></div>
-            <div class="summary-row total"><span>Total</span><strong id="summaryTotal">$0</strong></div>
-            <div class="action-row">
-              <button type="button" class="primary-btn" onclick="issueQuote()">Issue dispatch</button>
-              <button type="button" class="ghost-btn" onclick="printQuote()">Print view</button>
-            </div>
           </aside>
         </div>
       </section>
