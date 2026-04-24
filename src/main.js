@@ -202,6 +202,38 @@ function initSupabase() {
   return true;
 }
 
+/** Synthetic email domain for username→email mapping (must match invites created in Supabase dashboard). */
+function authEmailDomain() {
+  const d = String(import.meta.env.VITE_AUTH_EMAIL_DOMAIN || 'users.rockdispatch.local')
+    .trim()
+    .toLowerCase()
+    .replace(/^@/, '');
+  return d || 'users.rockdispatch.local';
+}
+
+/** Lowercase username: letters, digits, `.`, `_`, `-`. */
+function normalizeUsername(raw) {
+  return String(raw || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]/g, '');
+}
+
+/**
+ * If the user types an address with @, treat as legacy email login.
+ * Otherwise map username → username@AUTH_DOMAIN for Supabase email/password auth.
+ */
+function loginIdentifierToEmail(raw) {
+  const trimmed = String(raw || '').trim();
+  if (!trimmed) return '';
+  if (trimmed.includes('@')) {
+    return trimmed.toLowerCase();
+  }
+  const u = normalizeUsername(trimmed);
+  if (!u) return '';
+  return `${u}@${authEmailDomain()}`;
+}
+
 function setAuthModalDismissable(dismissable) {
   const closeBtn = document.querySelector('#authModal .auth-header .icon-btn');
   const cancelBtn = el('authCancelBtn');
@@ -225,7 +257,7 @@ function humanizeEmailLocalPart(local) {
 function displayNameForNav(user) {
   if (!user) return 'Signed in';
   const meta = user.user_metadata || {};
-  const fromMeta = String(meta.full_name || meta.name || meta.display_name || '').trim();
+  const fromMeta = String(meta.full_name || meta.username || meta.name || meta.display_name || '').trim();
   if (fromMeta) return fromMeta;
   const email = String(user.email || '').trim();
   if (!email) return 'Signed in';
@@ -1838,7 +1870,7 @@ function onAuthNavClick() {
       el('authTitle').textContent = login ? 'Welcome back' : 'Create dispatcher access';
       el('authText').textContent = login
         ? inviteOnly
-          ? 'Sign in with the email and password issued to you. Access is by invitation only.'
+          ? 'Sign in with your username and password issued to you. Access is by invitation only.'
           : 'Sign in to pin load plans and track issued haul sheets.'
         : 'Register to save preferences across sessions when you connect a backend.';
       el('authSubmitBtn').textContent = login ? 'Sign in' : 'Create account';
@@ -1876,10 +1908,10 @@ function onAuthNavClick() {
     }
 
     async function submitAuth() {
-      const email = el('authEmail').value.trim();
+      const rawLogin = el('authUsername').value.trim();
       const password = el('authPassword').value;
-      if (!email || !password) {
-        showToast('Enter email and password.');
+      if (!rawLogin || !password) {
+        showToast('Enter username and password.');
         return;
       }
       if (!supabaseClient) {
@@ -1893,11 +1925,21 @@ function onAuthNavClick() {
             showToast('New accounts are created by your administrator in Supabase.');
             return;
           }
+          const normalized = normalizeUsername(rawLogin);
+          if (normalized.length < 3 || normalized.length > 32) {
+            showToast('Username must be 3–32 characters (letters, numbers, periods, underscores, hyphens).');
+            return;
+          }
           const name = el('authName').value.trim();
+          const email = `${normalized}@${authEmailDomain()}`;
+          const meta = {
+            username: normalized,
+            ...(name ? { full_name: name } : {})
+          };
           const { data, error } = await supabaseClient.auth.signUp({
             email,
             password,
-            options: name ? { data: { full_name: name } } : undefined
+            options: { data: meta }
           });
           if (error) throw error;
           if (data.session) {
@@ -1907,6 +1949,11 @@ function onAuthNavClick() {
             showToast('Check your email to confirm, then sign in.');
           }
         } else {
+          const email = loginIdentifierToEmail(rawLogin);
+          if (!email) {
+            showToast('Enter a valid username or email.');
+            return;
+          }
           const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
           if (error) throw error;
           toggleAuth(false);
