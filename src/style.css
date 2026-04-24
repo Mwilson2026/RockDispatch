@@ -1332,38 +1332,32 @@
     }
 
     .arc-home__eyebrow {
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 700;
-      letter-spacing: 0.35em;
+      letter-spacing: 0.22em;
       text-transform: uppercase;
-      color: var(--muted);
-      margin-bottom: 20px;
+      color: var(--muted-2);
+      margin-bottom: 16px;
     }
 
+    /* Same stack as nav brand + section headings: Inter, uppercase, tracked (cf. .brand-copy h1, .section-top h2) */
     .arc-home__title {
-      font-family: 'Fraunces', Georgia, 'Times New Roman', serif;
-      font-weight: 700;
-      font-size: clamp(2.75rem, 7.5vw, 4.75rem);
-      line-height: 1.02;
-      letter-spacing: -0.03em;
-      margin-bottom: 24px;
+      font-family: inherit;
+      font-weight: 800;
+      font-size: clamp(28px, 4vw, 46px);
+      line-height: 1.05;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--text);
+      margin-bottom: 20px;
       display: flex;
       flex-wrap: wrap;
-      align-items: baseline;
-      gap: 0.12em 0.28em;
+      align-items: center;
+      gap: 0.25em 0.45em;
     }
 
     .arc-home__word {
-      background: linear-gradient(135deg, var(--text) 0%, rgba(255, 255, 255, 0.85) 100%);
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
-    }
-
-    [data-theme="light"] .arc-home__word {
-      background: linear-gradient(135deg, #12141a 0%, rgba(18, 20, 26, 0.75) 100%);
-      -webkit-background-clip: text;
-      background-clip: text;
+      color: var(--text);
     }
 
     .arc-home__word--2 {
@@ -1371,12 +1365,12 @@
     }
 
     .arc-home__amp {
-      font-family: 'Fraunces', Georgia, serif;
-      font-style: italic;
-      font-weight: 500;
-      font-size: 0.55em;
+      font-family: inherit;
+      font-style: normal;
+      font-weight: 700;
+      font-size: 0.58em;
+      letter-spacing: 0.12em;
       color: #c93c4a;
-      text-shadow: 0 0 40px rgba(178, 34, 52, 0.35);
     }
 
     [data-theme="light"] .arc-home__amp {
@@ -1384,8 +1378,8 @@
     }
 
     .arc-home__tagline {
-      font-size: clamp(1rem, 2.2vw, 1.2rem);
-      line-height: 1.55;
+      font-size: 14px;
+      line-height: 1.6;
       color: var(--muted);
       max-width: 52ch;
       margin-bottom: 36px;

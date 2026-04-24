@@ -108,6 +108,7 @@ const baseTemplates = [
       session: null,
       role: 'user',
       isAdmin: false,
+      profileDisplayName: null,
       issuedQuotes: [],
       scaleTickets: [],
       dailyOrders: [],
@@ -144,10 +145,11 @@ const baseTemplates = [
     async function fetchUserProfile() {
       state.role = 'user';
       state.isAdmin = false;
+      state.profileDisplayName = null;
       if (!supabaseClient || !state.session?.user?.id) return;
       const { data, error } = await supabaseClient
         .from('profiles')
-        .select('role')
+        .select('role, display_name')
         .eq('id', state.session.user.id)
         .maybeSingle();
       if (error) {
@@ -156,6 +158,8 @@ const baseTemplates = [
       }
       state.role = data?.role === 'admin' ? 'admin' : 'user';
       state.isAdmin = state.role === 'admin';
+      const dn = data?.display_name;
+      state.profileDisplayName = typeof dn === 'string' && dn.trim() ? dn.trim() : null;
     }
 
     const el = (id) => document.getElementById(id);
@@ -254,16 +258,27 @@ function humanizeEmailLocalPart(local) {
     .join(' ');
 }
 
-function displayNameForNav(user) {
-  if (!user) return 'Signed in';
+/** Fallback display string when profiles.display_name is empty (no "Hi" prefix). */
+function fallbackPersonName(user) {
+  if (!user) return '';
   const meta = user.user_metadata || {};
   const fromMeta = String(meta.full_name || meta.username || meta.name || meta.display_name || '').trim();
   if (fromMeta) return fromMeta;
   const email = String(user.email || '').trim();
-  if (!email) return 'Signed in';
+  if (!email) return '';
   const local = email.includes('@') ? email.split('@')[0] : email;
   const humanized = humanizeEmailLocalPart(local);
-  return humanized || 'Signed in';
+  return humanized || '';
+}
+
+/** Nav label: Hi + name from profile row, then metadata/email local part. Admins get · Admin suffix. */
+function navAccountGreeting(user) {
+  if (!user) return 'Hi';
+  const fromProfile = state.profileDisplayName?.trim();
+  const fallback = fallbackPersonName(user);
+  const name = fromProfile || fallback;
+  const hi = name ? `Hi, ${name}` : 'Hi';
+  return state.isAdmin ? `${hi} · Admin` : hi;
 }
 
 function closeNavUserDropdown() {
@@ -324,8 +339,7 @@ function updateAuthNav() {
   if (state.session?.user) {
     if (loginBtn) loginBtn.hidden = true;
     if (userRoot) userRoot.hidden = false;
-    const label = displayNameForNav(state.session.user);
-    const text = state.isAdmin ? `${label} · Admin` : label;
+    const text = navAccountGreeting(state.session.user);
     if (labelEl) labelEl.textContent = text;
   } else {
     if (loginBtn) {
@@ -352,6 +366,7 @@ function resetStateAfterSignOut() {
   state.session = null;
   state.role = 'user';
   state.isAdmin = false;
+  state.profileDisplayName = null;
   navigate('/', { replace: true });
 }
 

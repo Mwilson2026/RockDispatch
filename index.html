@@ -6,7 +6,7 @@
   <title>American R&amp;C · Rock Dispatch</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <script type="module" src="/src/main.js"></script>
 </head>
 <body>
@@ -400,11 +400,32 @@
 
           <div class="settings-layout">
             <nav class="settings-nav" aria-label="Settings sections">
-              <button type="button" class="settings-nav-btn active" data-settings-panel="appearance">Appearance</button>
+              <button type="button" class="settings-nav-btn active" data-settings-panel="profile">Profile</button>
+              <button type="button" class="settings-nav-btn" data-settings-panel="appearance">Appearance</button>
               <button type="button" class="settings-nav-btn" data-settings-panel="accounts">Customer accounts</button>
             </nav>
             <div class="settings-content">
-              <section id="settingsPanelAppearance" class="settings-panel">
+              <section id="settingsPanelProfile" class="settings-panel">
+                <h3>Your account</h3>
+                <p style="color: var(--muted); margin-bottom: 16px;">Email comes from your login and is stored in Supabase Auth. Name is saved here and shown in the header.</p>
+                <div id="settingsProfileOffline" hidden>
+                  <p style="color: var(--muted);">Connect Supabase (env vars) to manage your profile.</p>
+                </div>
+                <div id="settingsProfileSignedOut" hidden>
+                  <p style="color: var(--muted);">Sign in to view your email and set a display name.</p>
+                </div>
+                <div id="settingsProfileSignedIn" hidden>
+                  <label class="section-label" for="settingsEmailDisplay">Email</label>
+                  <div id="settingsEmailDisplay" class="settings-email-readonly" aria-live="polite">—</div>
+                  <label class="section-label" for="settingsDisplayNameInput" style="margin-top: 18px;">Display name</label>
+                  <input id="settingsDisplayNameInput" type="text" placeholder="How we should greet you" maxlength="120" autocomplete="name" />
+                  <div class="action-row" style="margin-top: 14px;">
+                    <button type="button" class="primary-btn" onclick="saveProfileDisplayName()">Save name</button>
+                  </div>
+                </div>
+              </section>
+
+              <section id="settingsPanelAppearance" class="settings-panel" hidden>
                 <h3>Theme</h3>
                 <p style="color: var(--muted); margin-bottom: 16px;">Choose light or dark mode for the whole app.</p>
                 <div class="theme-options">
