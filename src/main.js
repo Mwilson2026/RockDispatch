@@ -1958,12 +1958,14 @@ async function signOutUser() {
         showToast('Enter truck number and tare weight.');
         return;
       }
-      if (state.truckTares.some((t) => String(t?.truck || '').toLowerCase() === truck.toLowerCase())) {
-        showToast('That truck already exists. Use Edit instead.');
-        return;
-      }
-      const row = { id: `TR-${Date.now()}`, truck, companyName, tareWeight: tareRaw };
-      state.truckTares.push(row);
+      const existing = state.truckTares.find(
+        (t) => String(t?.truck || '').trim().toLowerCase() === truck.toLowerCase()
+      );
+      const row = existing || { id: `TR-${Date.now()}`, truck, companyName, tareWeight: tareRaw };
+      row.truck = truck;
+      row.companyName = companyName;
+      row.tareWeight = tareRaw;
+      if (!existing) state.truckTares.push(row);
       if (!persistTruckTares()) {
         showToast('Could not save stored truck tares.');
         return;
@@ -1987,7 +1989,7 @@ async function signOutUser() {
       renderStoredTruckTaresList();
       renderScaleTruckDropdown();
       clearScaleTruckSelection();
-      showToast('Stored truck tare added.');
+      showToast(existing ? 'Stored truck tare updated.' : 'Stored truck tare added.');
     }
 
     async function editStoredTruckTare(id) {
