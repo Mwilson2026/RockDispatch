@@ -209,6 +209,31 @@ function setAuthModalDismissable(dismissable) {
   if (cancelBtn) cancelBtn.style.display = dismissable ? '' : 'none';
 }
 
+/** Prefer profile-style name from auth metadata; never show full email in the nav. */
+function humanizeEmailLocalPart(local) {
+  const raw = String(local || '').trim();
+  if (!raw) return '';
+  const cleaned = raw.replace(/[._]+/g, ' ').trim();
+  if (!cleaned) return raw;
+  return cleaned
+    .split(/\s+/)
+    .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : ''))
+    .filter(Boolean)
+    .join(' ');
+}
+
+function displayNameForNav(user) {
+  if (!user) return 'Signed in';
+  const meta = user.user_metadata || {};
+  const fromMeta = String(meta.full_name || meta.name || meta.display_name || '').trim();
+  if (fromMeta) return fromMeta;
+  const email = String(user.email || '').trim();
+  if (!email) return 'Signed in';
+  const local = email.includes('@') ? email.split('@')[0] : email;
+  const humanized = humanizeEmailLocalPart(local);
+  return humanized || 'Signed in';
+}
+
 function updateAuthNav() {
   const btn = el('authStatusBtn');
   if (!btn) return;
@@ -217,9 +242,8 @@ function updateAuthNav() {
     return;
   }
   if (state.session?.user) {
-    const email = state.session.user.email || '';
-    const prefix = email ? email.split('@')[0] : 'Signed in';
-    btn.textContent = state.isAdmin ? `${prefix} · Admin` : prefix;
+    const label = displayNameForNav(state.session.user);
+    btn.textContent = state.isAdmin ? `${label} · Admin` : label;
   } else {
     btn.textContent = 'Login';
   }
