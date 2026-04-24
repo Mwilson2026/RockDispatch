@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Rock Dispatch — Quarry &amp; Haul Operations</title>
+  <title>American R&amp;C · Rock Dispatch</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <script type="module" src="/src/main.js"></script>
 </head>
 <body>
@@ -21,7 +21,8 @@
       </div>
 
       <nav class="nav-links">
-        <a href="/" data-route>Orders</a>
+        <a href="/" data-route>Home</a>
+        <a href="/orders" data-route>Orders</a>
         <a href="/desk" data-route>Scale desk</a>
         <a href="/ops" data-route>Ops desk</a>
         <a href="/admin" data-route>Admin</a>
@@ -32,11 +33,48 @@
         <button type="button" class="icon-btn" onclick="navigate('/settings')" title="Settings" aria-label="Settings">⚙</button>
         <button type="button" class="icon-btn" onclick="toggleAuth()" aria-label="Account">◎</button>
         <button type="button" class="ghost-btn menu-persist" onclick="onAuthNavClick()" id="authStatusBtn">Login</button>
+        <button type="button" class="ghost-btn menu-persist nav-logout" onclick="signOutUser()" id="logoutBtn" hidden>Log out</button>
         <button type="button" class="summary-btn" onclick="navigate('/builder')">Dispatch <span class="badge-count" id="builderCount">0</span></button>
       </div>
     </header>
 
     <main>
+      <section id="homeView" class="view active">
+        <div class="arc-home">
+          <div class="arc-home__bg" aria-hidden="true"></div>
+          <div class="arc-home__glow arc-home__glow--1" aria-hidden="true"></div>
+          <div class="arc-home__glow arc-home__glow--2" aria-hidden="true"></div>
+          <div class="arc-home__inner">
+            <p class="arc-home__eyebrow">Aggregate · asphalt · haul</p>
+            <h1 class="arc-home__title">
+              <span class="arc-home__word arc-home__word--1">American</span>
+              <span class="arc-home__amp" aria-hidden="true">&amp;</span>
+              <span class="arc-home__word arc-home__word--2">R&amp;C</span>
+            </h1>
+            <p class="arc-home__tagline">Rock-solid dispatch for quarries and construction — tonnage, timing, and trucks in one place.</p>
+            <div class="arc-home__actions">
+              <button type="button" class="primary-btn arc-home__cta" onclick="navigate('/orders')">Orders board</button>
+              <button type="button" class="ghost-btn arc-home__cta2" onclick="navigate('/desk')">Scale desk</button>
+              <button type="button" class="ghost-btn arc-home__cta2" onclick="navigate('/builder')">Dispatch builder</button>
+            </div>
+            <ul class="arc-home__features" aria-label="Highlights">
+              <li class="arc-home__feature">
+                <span class="arc-home__feature-icon" aria-hidden="true">◆</span>
+                <span><strong>Orders</strong> — calendar, accounts, jobsite notes</span>
+              </li>
+              <li class="arc-home__feature">
+                <span class="arc-home__feature-icon" aria-hidden="true">◆</span>
+                <span><strong>Scale house</strong> — tickets and daily tons</span>
+              </li>
+              <li class="arc-home__feature">
+                <span class="arc-home__feature-icon" aria-hidden="true">◆</span>
+                <span><strong>Ops</strong> — load plans and issued sheets</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
       <section id="deskView" class="view">
         <section class="section" id="desk">
           <div class="section-top">
@@ -130,7 +168,7 @@
         </section>
       </section>
 
-      <section id="ordersView" class="view active">
+      <section id="ordersView" class="view">
         <section class="section orders-board-section">
           <div class="orders-layout">
             <div class="orders-main">
@@ -207,7 +245,7 @@
             <div class="section-label">Load plan</div>
             <h2 id="detailHeader">Overview</h2>
           </div>
-          <button type="button" class="ghost-btn" onclick="navigate('/')">Back to orders</button>
+          <button type="button" class="ghost-btn" onclick="navigate('/orders')">Back to orders</button>
         </div>
 
         <div class="detail-grid">

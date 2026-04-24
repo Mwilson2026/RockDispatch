@@ -101,7 +101,7 @@ const baseTemplates = [
       searchQuery: '',
       saved: new Set(),
       builderLines: [],
-      currentView: 'ordersView',
+      currentView: 'homeView',
       currentDetailId: null,
       authMode: 'login',
       user: null,
@@ -268,6 +268,10 @@ function displayNameForNav(user) {
 
 function updateAuthNav() {
   const btn = el('authStatusBtn');
+  const logoutBtn = el('logoutBtn');
+  if (logoutBtn) {
+    logoutBtn.hidden = !supabaseClient || !state.session?.user;
+  }
   if (!btn) return;
   if (!supabaseClient) {
     btn.textContent = 'Offline';
@@ -323,7 +327,7 @@ function onAuthNavClick() {
     return;
   }
   if (state.session?.user) {
-    void signOutUser();
+    navigate('/settings');
   } else {
     toggleAuth(true);
   }
@@ -1284,7 +1288,8 @@ function onAuthNavClick() {
 
     function parsePath(pathname) {
       const raw = pathname.replace(/\/$/, '') || '/';
-      if (raw === '/' || raw === '/loads' || raw === '/orders') return { page: 'orders' };
+      if (raw === '/') return { page: 'home' };
+      if (raw === '/loads' || raw === '/orders') return { page: 'orders' };
       if (raw === '/desk') return { page: 'desk' };
       if (raw === '/settings') return { page: 'settings' };
       if (raw === '/ops') return { page: 'ops' };
@@ -1299,16 +1304,21 @@ function onAuthNavClick() {
         }
         return { page: 'detail', tid };
       }
-      return { page: 'orders' };
+      return { page: 'home' };
     }
 
     function updateNavActive(pathname) {
       const p = pathname.replace(/\/$/, '') || '/';
       document.querySelectorAll('a[data-route]').forEach((a) => {
         const href = (a.getAttribute('href') || '').replace(/\/$/, '') || '/';
-        const ordersHome =
-          (p === '/' || p === '/loads' || p === '/orders') && href === '/';
-        const active = p === href || ordersHome;
+        let active = false;
+        if (href === '/') {
+          active = p === '/' || p === '';
+        } else if (href === '/orders') {
+          active = p === '/orders' || p === '/loads';
+        } else {
+          active = p === href;
+        }
         if (active) a.setAttribute('aria-current', 'page');
         else a.removeAttribute('aria-current');
       });
@@ -1347,6 +1357,10 @@ function onAuthNavClick() {
       renderAll();
 
       switch (route.page) {
+        case 'home':
+          switchView('homeView');
+          updateNavActive('/');
+          break;
         case 'desk':
           switchView('deskView');
           updateNavActive('/desk');
@@ -1376,7 +1390,7 @@ function onAuthNavClick() {
           updateNavActive('/settings');
           break;
         default:
-          switchView('ordersView');
+          switchView('homeView');
           updateNavActive('/');
       }
     }
@@ -2047,6 +2061,7 @@ function onAuthNavClick() {
       createTemplate,
       fillAdminDemo,
       submitAuth,
+      signOutUser,
       setTheme,
       selectCustomerAccount,
       addCustomerAccountFromSettings
