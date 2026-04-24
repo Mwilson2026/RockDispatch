@@ -68,17 +68,6 @@ const baseTemplates = [
       }
     ];
 
-    const stories = [
-      {
-        title: 'Keep the board honest',
-        text: 'Match scale tons to slip counts early. When rip rap or export jobs drift, it is almost always tickets entered late—not trucks running light.'
-      },
-      {
-        title: 'Window beats price on busy pits',
-        text: 'Customers remember reliable dispatch windows more than a dollar off per ton. Publish the load window like you mean it.'
-      }
-    ];
-
     const STORAGE_SCALE = 'rockDispatch_scaleTickets_v1';
     const STORAGE_ORDERS = 'rockDispatch_dailyOrders_v1';
     const STORAGE_SALES_ORDERS = 'rockDispatch_salesOrders_v1';
@@ -418,7 +407,12 @@ async function signOutUser() {
         netTons: Number(row.net_tons),
         material: row.material,
         time: row.time_text,
-        notes: row.notes || ''
+        notes: row.notes || '',
+        customer: row.customer ?? '',
+        job: row.job ?? '',
+        tonsOrdered: row.tons_ordered != null ? Number(row.tons_ordered) : 0,
+        loads: Number(row.loads) || 0,
+        status: row.status || 'Scheduled'
       };
     }
 
@@ -457,7 +451,12 @@ async function signOutUser() {
         net_tons: Number(t.netTons),
         material: t.material,
         time_text: String(t.time),
-        notes: t.notes || ''
+        notes: t.notes || '',
+        customer: t.customer || '',
+        job: t.job || '',
+        tons_ordered: Number(t.tonsOrdered) || 0,
+        loads: parseInt(String(t.loads), 10) || 0,
+        status: t.status || 'Scheduled'
       };
       const { error } = await supabaseClient.from('scale_tickets').upsert(row);
       if (error) console.error(error);
@@ -671,6 +670,28 @@ async function signOutUser() {
       input.value = nowCentralTimeHHMM();
     }
 
+    /** Next integer ticket # for this working date (starts at 1). Only all-digit stored tickets count toward the max. */
+    function nextScaleTicketNumberForDate(iso) {
+      let max = 0;
+      for (const t of state.scaleTickets) {
+        if (t.date !== iso) continue;
+        const s = String(t.ticket ?? '').trim();
+        if (/^\d+$/.test(s)) {
+          const n = parseInt(s, 10);
+          if (n > max) max = n;
+        }
+      }
+      return max + 1;
+    }
+
+    function autofillScaleTicketNumber() {
+      if (state.currentView !== 'deskView') return;
+      const input = el('scaleTicket');
+      if (!input) return;
+      if (document.activeElement === input) return;
+      input.value = String(nextScaleTicketNumberForDate(state.deskDate));
+    }
+
     function escapeHtml(str) {
       return String(str)
         .replace(/&/g, '&amp;')
@@ -707,8 +728,36 @@ async function signOutUser() {
       const today = isoFromDate(new Date());
       const prior = isoFromDate(new Date(Date.now() - 86400000));
       state.scaleTickets.push(
-        { id: 'S-seed-1', date: today, truck: 'T-104', ticket: 'SC-9081', netTons: 24.6, material: '3/4 clean', time: '06:42', notes: '' },
-        { id: 'S-seed-2', date: today, truck: 'T-212', ticket: 'SC-9082', netTons: 25.1, material: '1-1/2 base', time: '07:05', notes: 'Moisture OK' }
+        {
+          id: 'S-seed-1',
+          date: today,
+          truck: 'T-104',
+          ticket: 'SC-9081',
+          netTons: 24.6,
+          material: '3/4 clean',
+          time: '06:42',
+          notes: '',
+          customer: 'North Ridge',
+          job: 'Channel work',
+          tonsOrdered: 24,
+          loads: 1,
+          status: 'Loading'
+        },
+        {
+          id: 'S-seed-2',
+          date: today,
+          truck: 'T-212',
+          ticket: 'SC-9082',
+          netTons: 25.1,
+          material: '1-1/2 base',
+          time: '07:05',
+          notes: 'Moisture OK',
+          customer: 'Prairie Commercial',
+          job: 'Export pad',
+          tonsOrdered: 25,
+          loads: 1,
+          status: 'Scheduled'
+        }
       );
       state.dailyOrders.push(
         { id: 'O-seed-1', date: today, customer: 'Summit Civil', job: 'County shoulder', material: '3/4 clean', tons: 260, loads: 11, status: 'Scheduled', notes: 'PM pour' },
@@ -1347,30 +1396,50 @@ async function signOutUser() {
 
     function clearScaleForm() {
       el('scaleTruck').value = '';
-      el('scaleTicket').value = '';
+      const tickEl = el('scaleTicket');
+      if (tickEl) tickEl.value = String(nextScaleTicketNumberForDate(state.deskDate));
       const timeEl = el('scaleTime');
       if (timeEl) timeEl.value = nowCentralTimeHHMM();
       el('scaleNet').value = '';
       el('scaleMaterial').value = '';
+      el('scaleOrderedTons').value = '';
+      el('scaleCustomer').value = '';
+      el('scaleJob').value = '';
+      el('scaleLoads').value = '';
+      const st = el('scaleStatus');
+      if (st) st.value = 'Scheduled';
       el('scaleNotes').value = '';
     }
 
     function addScaleTicket() {
       const truck = el('scaleTruck').value.trim();
       const net = parseFloat(el('scaleNet').value);
+      const customer = el('scaleCustomer').value.trim();
+      const orderedTons = parseFloat(el('scaleOrderedTons').value);
       if (!truck || Number.isNaN(net)) {
         showToast('Enter truck # and net tons.');
         return;
       }
+      if (!customer || Number.isNaN(orderedTons)) {
+        showToast('Enter customer and tons ordered.');
+        return;
+      }
+      let ticketNo = el('scaleTicket').value.trim();
+      if (!ticketNo) ticketNo = String(nextScaleTicketNumberForDate(state.deskDate));
       const newTicket = {
         id: `S-${Date.now()}`,
         date: state.deskDate,
         truck,
-        ticket: el('scaleTicket').value.trim(),
+        ticket: ticketNo,
         netTons: net,
         material: el('scaleMaterial').value.trim() || '—',
         time: el('scaleTime').value || '—',
-        notes: el('scaleNotes').value.trim()
+        notes: el('scaleNotes').value.trim(),
+        customer,
+        job: el('scaleJob').value.trim() || '—',
+        tonsOrdered: orderedTons,
+        loads: parseInt(el('scaleLoads').value, 10) || 0,
+        status: el('scaleStatus').value
       };
       state.scaleTickets.unshift(newTicket);
       persistDesk();
@@ -1438,14 +1507,21 @@ async function signOutUser() {
       rows.forEach((t) => {
         const row = document.createElement('div');
         row.className = 'scale-table-row';
-        const note = t.notes ? ` <span style="color:var(--muted-2);">(${escapeHtml(t.notes)})</span>` : '';
-        const ticket = t.ticket ? ` <span style="color:var(--muted-2);">#${escapeHtml(t.ticket)}</span>` : '';
+        const cust = escapeHtml(t.customer || '—');
+        const job = escapeHtml(t.job || '—');
+        const st = escapeHtml(t.status || '—');
         row.innerHTML = `
-          <div>${escapeHtml(t.truck)}${ticket}${note}</div>
+          <div>${escapeHtml(t.truck)}</div>
+          <div>${escapeHtml(String(t.ticket || '—'))}</div>
           <div>${Number(t.netTons).toFixed(2)}</div>
-          <div>${escapeHtml(t.material)}</div>
+          <div>${escapeHtml(t.material || '—')}</div>
+          <div title="${cust}">${cust}</div>
+          <div title="${job}">${job}</div>
+          <div>${t.tonsOrdered != null && !Number.isNaN(Number(t.tonsOrdered)) ? Number(t.tonsOrdered).toFixed(1) : '—'}</div>
+          <div>${Number(t.loads) || 0}</div>
+          <div>${st}</div>
           <div>${escapeHtml(String(t.time))}</div>
-          <button type="button" class="ghost-btn" style="padding:8px 12px;font-size:12px;">Remove</button>
+          <button type="button" class="ghost-btn" style="padding:8px 10px;font-size:11px;">Remove</button>
         `;
         row.querySelector('button').onclick = () => removeScaleTicket(t.id);
         body.appendChild(row);
@@ -1539,6 +1615,7 @@ async function signOutUser() {
       renderOrderTable();
       renderMiniCalendar();
       syncScaleTimeLiveToCentral();
+      autofillScaleTicketNumber();
     }
 
     function formatMoney(v) { return `$${Number(v || 0).toFixed(2)}`; }
@@ -1564,7 +1641,6 @@ async function signOutUser() {
       if (raw === '/loads' || raw === '/orders') return { page: 'orders' };
       if (raw === '/desk') return { page: 'desk' };
       if (raw === '/settings') return { page: 'settings' };
-      if (raw === '/ops') return { page: 'ops' };
       if (raw === '/builder') return { page: 'builder' };
       if (raw === '/admin') return { page: 'admin' };
       if (raw.startsWith('/load/')) {
@@ -1601,7 +1677,7 @@ async function signOutUser() {
       const normalized = pathname.replace(/\/$/, '') || '/';
       const known =
         normalized === '/' ||
-        ['/desk', '/loads', '/orders', '/settings', '/ops', '/builder', '/admin'].includes(normalized) ||
+        ['/desk', '/loads', '/orders', '/settings', '/builder', '/admin'].includes(normalized) ||
         normalized.startsWith('/load/');
       if (!known) {
         history.replaceState(null, '', '/');
@@ -1640,10 +1716,6 @@ async function signOutUser() {
         case 'orders':
           switchView('ordersView');
           updateNavActive(window.location.pathname);
-          break;
-        case 'ops':
-          switchView('opsView');
-          updateNavActive('/ops');
           break;
         case 'builder':
           renderBuilder();
@@ -1812,24 +1884,6 @@ async function signOutUser() {
           </div>
         `;
         gridEl.appendChild(card);
-      });
-    }
-
-    function renderStories() {
-      const grid = el('storyGrid');
-      grid.innerHTML = '';
-      stories.forEach((story) => {
-        const article = document.createElement('article');
-        article.className = 'story-card';
-        article.innerHTML = `
-          <div class="overlay"></div>
-          <div class="story-copy">
-            <span class="eyebrow">Ops note</span>
-            <h3>${story.title}</h3>
-            <p>${story.text}</p>
-          </div>
-        `;
-        grid.appendChild(article);
       });
     }
 
@@ -2302,7 +2356,6 @@ async function signOutUser() {
       renderFeedTabs();
       renderFilters();
       renderTemplates();
-      renderStories();
       renderDesk();
       renderOrdersPage();
       renderSettingsPage();

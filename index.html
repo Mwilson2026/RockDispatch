@@ -24,7 +24,6 @@
         <a href="/" data-route>Home</a>
         <a href="/orders" data-route>Orders</a>
         <a href="/desk" data-route>Scale</a>
-        <a href="/ops" data-route>Ops desk</a>
         <a href="/admin" data-route>Admin</a>
         <a href="/settings" data-route>Settings</a>
       </nav>
@@ -68,7 +67,7 @@
               </li>
               <li class="arc-home__feature">
                 <span class="arc-home__feature-icon" aria-hidden="true">◆</span>
-                <span><strong>Ops</strong> — load plans and issued sheets</span>
+                <span><strong>Dispatch</strong> — haul sheets and issued quotes</span>
               </li>
             </ul>
           </div>
@@ -93,23 +92,36 @@
           <div class="desk-grid">
             <div class="panel box">
               <h3>Trucks at scale</h3>
-              <p>Record net weight, material, and ticket details for the <strong id="deskDateLabelScale">selected day</strong>.</p>
-              <div class="field-grid">
+              <p>Record the scale reading and the same job line details as <strong>Add order line</strong> (customer and tons ordered are required).</p>
+              <div class="section-label" style="margin-top: 4px;">Scale ticket</div>
+              <div class="field-grid-3">
                 <input id="scaleTruck" placeholder="Truck # / unit" autocomplete="off" />
-                <input id="scaleTicket" placeholder="Scale ticket #" autocomplete="off" />
+                <input id="scaleTicket" placeholder="Ticket # (auto 1, 2, 3…)" inputmode="numeric" autocomplete="off" />
                 <input id="scaleTime" type="time" />
-                <input id="scaleNet" type="number" step="0.01" placeholder="Net tons" />
-                <input id="scaleMaterial" placeholder="Material" list="scaleMaterialList" />
-                <datalist id="scaleMaterialList">
-                  <option value="1-1/2 base"></option>
-                  <option value="3/4 clean"></option>
-                  <option value="Rip rap"></option>
-                  <option value="Sand"></option>
-                  <option value="Fill / structural"></option>
-                </datalist>
+                <input id="scaleNet" type="number" step="0.01" placeholder="Net tons (actual)" />
+                <input id="scaleMaterial" placeholder="Material" list="scaleMaterialList" autocomplete="off" />
+                <input id="scaleOrderedTons" type="number" step="0.1" placeholder="Tons ordered" />
+              </div>
+              <datalist id="scaleMaterialList">
+                <option value="1-1/2 base"></option>
+                <option value="3/4 clean"></option>
+                <option value="Rip rap"></option>
+                <option value="Sand"></option>
+                <option value="Fill / structural"></option>
+              </datalist>
+              <div class="section-label" style="margin-top: 14px;">Job / order</div>
+              <div class="field-grid-3">
+                <input id="scaleCustomer" placeholder="Customer" autocomplete="off" />
+                <input id="scaleJob" placeholder="Job / drop" autocomplete="off" />
+                <input id="scaleLoads" type="number" step="1" placeholder="Loads planned" />
+                <select id="scaleStatus">
+                  <option value="Scheduled">Scheduled</option>
+                  <option value="Loading">Loading</option>
+                  <option value="Delivered">Delivered</option>
+                </select>
               </div>
               <div style="margin-top:12px;">
-                <textarea id="scaleNotes" placeholder="Notes (moisture, reject, split load...)"></textarea>
+                <textarea id="scaleNotes" placeholder="Dispatcher notes, PO #, moisture, reject, split load..."></textarea>
               </div>
               <div class="action-row">
                 <button type="button" class="primary-btn" onclick="addScaleTicket()">Add scale ticket</button>
@@ -119,8 +131,14 @@
               <div class="scale-table-wrap">
                 <div class="scale-table-header">
                   <div>Truck</div>
-                  <div>Net (tons)</div>
-                  <div>Material</div>
+                  <div>#</div>
+                  <div>Net</div>
+                  <div>Mat.</div>
+                  <div>Customer</div>
+                  <div>Job</div>
+                  <div>Ord.</div>
+                  <div>Ld</div>
+                  <div>St.</div>
                   <div>Time</div>
                   <div></div>
                 </div>
@@ -223,19 +241,6 @@
               </div>
             </aside>
           </div>
-        </section>
-      </section>
-
-      <section id="opsView" class="view">
-        <section class="section" id="ops">
-          <div class="section-top">
-            <div>
-              <div class="section-label">Ops desk</div>
-              <h2>Dispatcher notes</h2>
-            </div>
-          </div>
-
-          <div class="story-grid" id="storyGrid"></div>
         </section>
       </section>
 

@@ -230,7 +230,7 @@
     .view { display: none; }
     .view.active { display: block; }
 
-    .hero-grid, .dashboard-grid, .builder-grid, .detail-grid, .story-grid {
+    .hero-grid, .dashboard-grid, .builder-grid, .detail-grid {
       display: grid;
       gap: 18px;
     }
@@ -239,14 +239,10 @@
       grid-template-columns: 1.45fr .8fr;
     }
 
-    .hero-main, .story-card {
+    .hero-main {
       position: relative;
       overflow: hidden;
       border: 1px solid var(--line);
-      background: #111;
-    }
-
-    .hero-main {
       min-height: 600px;
       border-radius: var(--radius-xl);
       background-image:
@@ -270,7 +266,7 @@
       background: linear-gradient(to top, rgba(0,0,0,.95), rgba(0,0,0,.15), rgba(0,0,0,0));
     }
 
-    .hero-content, .story-copy {
+    .hero-content {
       position: absolute;
       left: 0;
       right: 0;
@@ -454,20 +450,6 @@
       font-size: 32px;
       font-weight: 900;
     }
-
-    .story-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      margin-top: 24px;
-    }
-
-    .story-card {
-      min-height: 360px;
-      border-radius: 32px;
-      background-image: linear-gradient(135deg, rgba(255,255,255,.07), rgba(255,255,255,0)), linear-gradient(180deg, #16161a, #080808);
-    }
-
-    .story-copy h3 { font-size: 30px; }
-    .story-copy p { margin-top: 10px; color: rgba(255,255,255,.74); line-height: 1.6; max-width: 460px; }
 
     .detail-grid {
       grid-template-columns: 1.1fr .9fr;
@@ -889,11 +871,13 @@
 
     .scale-table-header, .scale-table-row {
       display: grid;
-      grid-template-columns: 1fr 1fr 1fr 1fr auto;
-      gap: 10px;
+      grid-template-columns:
+        minmax(0, 0.9fr) minmax(0, 0.4fr) minmax(0, 0.45fr) minmax(0, 0.55fr) minmax(0, 0.85fr) minmax(0, 0.65fr)
+        minmax(0, 0.45fr) minmax(0, 0.35fr) minmax(0, 0.55fr) minmax(0, 0.5fr) auto;
+      gap: 8px;
       padding: 12px 14px;
       align-items: center;
-      font-size: 13px;
+      font-size: 12px;
     }
 
     .scale-table-header {
@@ -1609,9 +1593,9 @@
     @media (max-width: 760px) {
       .app { width: min(100%, calc(100% - 20px)); padding-top: 10px; }
       .hero-main { min-height: 520px; }
-      .hero-content, .story-copy { padding: 24px; }
+      .hero-content { padding: 24px; }
       .hero-title { font-size: 44px; }
-      .side-stack, .cards-grid, .story-grid, .metrics, .field-grid, .sheet-grid { grid-template-columns: 1fr; }
+      .side-stack, .cards-grid, .metrics, .field-grid, .sheet-grid { grid-template-columns: 1fr; }
       .detail-sheet { min-height: auto; }
       .line-header { display: none; }
       .line-row, .line-item-card { grid-template-columns: 1fr; }
