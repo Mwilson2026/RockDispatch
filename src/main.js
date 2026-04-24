@@ -850,7 +850,7 @@ async function signOutUser() {
     function accountHintText() {
       return state.customerAccounts.length
         ? 'Search and select a customer account.'
-        : 'No accounts yet — an admin can add customer accounts in Settings.';
+        : 'No accounts yet — add customer accounts in Settings.';
     }
 
     function clearAccountSelection() {
@@ -987,13 +987,12 @@ async function signOutUser() {
 
       const adminBlk = el('settingsAccountsAdminBlock');
       const locked = el('settingsAccountsLocked');
-      const canManage = !!state.isAdmin;
-      if (adminBlk) adminBlk.hidden = !canManage;
-      if (locked) locked.hidden = canManage;
-      if (canManage) renderCustomerAccountsList();
+      if (adminBlk) adminBlk.hidden = false;
+      if (locked) locked.hidden = true;
+      renderCustomerAccountsList();
 
       const adminBadge = el('settingsProfileAdminBadge');
-      if (adminBadge) adminBadge.hidden = !loggedIn || !canManage;
+      if (adminBadge) adminBadge.hidden = true;
     }
 
     async function saveGreetingName() {
@@ -1154,10 +1153,6 @@ async function signOutUser() {
     }
 
     function addCustomerAccountFromSettings() {
-      if (!state.isAdmin) {
-        showToast('Only administrators can manage customer accounts.');
-        return;
-      }
       const inp = el('newAccountName');
       const name = inp?.value.trim() ?? '';
       if (!name) {
@@ -1178,7 +1173,6 @@ async function signOutUser() {
     }
 
     function renameCustomerAccount(id) {
-      if (!state.isAdmin) return;
       const a = state.customerAccounts.find((x) => x.id === id);
       if (!a) return;
       const next = window.prompt('Rename customer account', a.name);
@@ -1199,7 +1193,6 @@ async function signOutUser() {
     }
 
     function deleteCustomerAccount(id) {
-      if (!state.isAdmin) return;
       if (!window.confirm('Delete this customer account? Existing orders keep the name they had when saved.')) return;
       state.customerAccounts = state.customerAccounts.filter((a) => a.id !== id);
       persistCustomerAccounts();
