@@ -157,6 +157,10 @@
       box-shadow: var(--shadow);
     }
 
+    .header-menu-dropdown[hidden] {
+      display: none !important;
+    }
+
     .header-menu-dropdown a[data-route],
     .header-menu-dropdown button {
       width: 100%;
