@@ -99,7 +99,9 @@
                 <input id="scaleTruck" placeholder="Truck # / unit" autocomplete="off" />
                 <input id="scaleTicket" placeholder="Ticket # (auto 1, 2, 3…)" inputmode="numeric" autocomplete="off" />
                 <input id="scaleTime" type="time" />
-                <input id="scaleNet" type="number" step="0.01" placeholder="Net tons (actual)" />
+                <input id="scaleTareWeight" type="number" step="0.01" placeholder="Tare weight" />
+                <input id="scaleGrossWeight" type="number" step="0.01" placeholder="Gross Weight" />
+                <input id="scaleTotalMaterialWeight" type="number" step="0.01" placeholder="Total Material Weight" readonly />
                 <input id="scaleMaterial" placeholder="Material" list="scaleMaterialList" autocomplete="off" />
                 <input id="scaleOrderedTons" type="number" step="0.1" placeholder="Tons ordered" />
               </div>
@@ -139,7 +141,7 @@
                 <div class="scale-table-header">
                   <div>Truck</div>
                   <div>#</div>
-                  <div>Net</div>
+                  <div>Total</div>
                   <div>Mat.</div>
                   <div>Customer</div>
                   <div>Job</div>

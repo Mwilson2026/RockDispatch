@@ -1462,7 +1462,9 @@ async function signOutUser() {
       clearScaleAccountSelection();
       const timeEl = el('scaleTime');
       if (timeEl) timeEl.value = nowCentralTimeHHMM();
-      el('scaleNet').value = '';
+      el('scaleTareWeight').value = '';
+      el('scaleGrossWeight').value = '';
+      el('scaleTotalMaterialWeight').value = '';
       el('scaleMaterial').value = '';
       el('scaleOrderedTons').value = '';
       el('scaleJob').value = '';
@@ -1474,13 +1476,19 @@ async function signOutUser() {
 
     function addScaleTicket() {
       const truck = el('scaleTruck').value.trim();
-      const net = parseFloat(el('scaleNet').value);
+      const tareWeight = parseFloat(el('scaleTareWeight').value);
+      const grossWeight = parseFloat(el('scaleGrossWeight').value);
+      const totalMaterialWeight = parseFloat(el('scaleTotalMaterialWeight').value);
       const accountId = el('scaleAccountId')?.value?.trim() ?? '';
       const accRecord = accountId ? state.customerAccounts.find((x) => x.id === accountId) : null;
       const customer = (accRecord ? accRecord.name : (el('scaleAccountSearch')?.value ?? '')).trim();
       const orderedTons = parseFloat(el('scaleOrderedTons').value);
-      if (!truck || Number.isNaN(net)) {
-        showToast('Enter truck # and net tons.');
+      if (!truck || Number.isNaN(tareWeight) || Number.isNaN(grossWeight) || Number.isNaN(totalMaterialWeight)) {
+        showToast('Enter truck #, tare weight, and gross weight.');
+        return;
+      }
+      if (grossWeight < tareWeight) {
+        showToast('Gross Weight must be greater than or equal to Tare weight.');
         return;
       }
       if (state.customerAccounts.length > 0 && !accountId) {
@@ -1498,7 +1506,7 @@ async function signOutUser() {
         date: state.deskDate,
         truck,
         ticket: ticketNo,
-        netTons: net,
+        netTons: totalMaterialWeight,
         material: el('scaleMaterial').value.trim() || '—',
         time: el('scaleTime').value || '—',
         notes: el('scaleNotes').value.trim(),
@@ -1683,9 +1691,25 @@ async function signOutUser() {
       renderMiniCalendar();
       syncScaleTimeLiveToCentral();
       autofillScaleTicketNumber();
+      syncScaleMaterialWeight();
       const scaleHint = el('scaleAccountHint');
       if (scaleHint && !state.selectedScaleCustomerAccountId) scaleHint.textContent = accountHintText();
       renderScaleAccountDropdown();
+    }
+
+    function syncScaleMaterialWeight() {
+      const tareEl = el('scaleTareWeight');
+      const grossEl = el('scaleGrossWeight');
+      const totalEl = el('scaleTotalMaterialWeight');
+      if (!tareEl || !grossEl || !totalEl) return;
+      const tare = parseFloat(tareEl.value);
+      const gross = parseFloat(grossEl.value);
+      if (Number.isNaN(tare) || Number.isNaN(gross)) {
+        totalEl.value = '';
+        return;
+      }
+      const total = gross - tare;
+      totalEl.value = Number.isFinite(total) ? total.toFixed(2) : '';
     }
 
     function formatMoney(v) { return `$${Number(v || 0).toFixed(2)}`; }
@@ -2453,6 +2477,10 @@ async function signOutUser() {
         if (v) setDeskDate(v);
       });
     }
+    const scaleTareWeight = el('scaleTareWeight');
+    if (scaleTareWeight) scaleTareWeight.addEventListener('input', () => syncScaleMaterialWeight());
+    const scaleGrossWeight = el('scaleGrossWeight');
+    if (scaleGrossWeight) scaleGrossWeight.addEventListener('input', () => syncScaleMaterialWeight());
 
     let scaleTimeLiveIntervalId = null;
     if (scaleTimeLiveIntervalId == null) {
