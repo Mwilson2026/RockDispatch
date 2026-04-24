@@ -110,8 +110,14 @@
                 <option value="Fill / structural"></option>
               </datalist>
               <div class="section-label" style="margin-top: 14px;">Job / order</div>
+              <div class="account-combo" style="margin-top: 10px;">
+                <label class="section-label" for="scaleAccountSearch">Customer account</label>
+                <input type="search" id="scaleAccountSearch" placeholder="Search accounts, then pick one..." autocomplete="off" />
+                <div id="scaleAccountDropdown" class="account-dropdown" hidden role="listbox"></div>
+                <input type="hidden" id="scaleAccountId" value="" />
+                <p class="account-hint" id="scaleAccountHint">Search and select a customer account.</p>
+              </div>
               <div class="field-grid-3">
-                <input id="scaleCustomer" placeholder="Customer" autocomplete="off" />
                 <input id="scaleJob" placeholder="Job / drop" autocomplete="off" />
                 <input id="scaleLoads" type="number" step="1" placeholder="Loads planned" />
                 <select id="scaleStatus">

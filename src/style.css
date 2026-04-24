@@ -1,4 +1,4 @@
-﻿:root,
+:root,
     [data-theme="dark"] {
       --bg: #000;
       --panel: #0d0d0f;
@@ -977,6 +977,10 @@
       grid-column: 1 / -1;
     }
 
+    .field-grid-3 .span-2 {
+      grid-column: 1 / -1;
+    }
+
     .field-grid-orders textarea {
       width: 100%;
       border-radius: 18px;
@@ -1287,7 +1291,7 @@
       margin-top: 2px;
     }
 
-    /* —— American R&C home —— */
+    /* American R&C home */
     #homeView.view {
       padding: 0;
     }

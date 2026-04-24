@@ -133,7 +133,8 @@ const baseTemplates = [
       ordersCalendarCollapsed: false,
       salesOrders: [],
       customerAccounts: [],
-      selectedCustomerAccountId: null
+      selectedCustomerAccountId: null,
+      selectedScaleCustomerAccountId: null
     };
 
     (function initOrdersBoardDefaults() {
@@ -846,6 +847,12 @@ async function signOutUser() {
       });
     }
 
+    function accountHintText() {
+      return state.customerAccounts.length
+        ? 'Search and select a customer account.'
+        : 'No accounts yet — an admin can add customer accounts in Settings.';
+    }
+
     function clearAccountSelection() {
       state.selectedCustomerAccountId = null;
       const hid = el('soAccountId');
@@ -853,24 +860,32 @@ async function signOutUser() {
       const hint = el('soAccountHint');
       if (hid) hid.value = '';
       if (search) search.value = '';
-      if (hint) {
-        hint.textContent = state.customerAccounts.length
-          ? 'Search and select a customer account.'
-          : 'No accounts yet — an admin can add customer accounts in Settings.';
-      }
+      if (hint) hint.textContent = accountHintText();
       const dd = el('soAccountDropdown');
       if (dd) dd.hidden = true;
     }
 
-    function getFilteredCustomerAccounts() {
-      const q = (el('soAccountSearch')?.value || '').trim().toLowerCase();
+    function clearScaleAccountSelection() {
+      state.selectedScaleCustomerAccountId = null;
+      const hid = el('scaleAccountId');
+      const search = el('scaleAccountSearch');
+      const hint = el('scaleAccountHint');
+      if (hid) hid.value = '';
+      if (search) search.value = '';
+      if (hint) hint.textContent = accountHintText();
+      const dd = el('scaleAccountDropdown');
+      if (dd) dd.hidden = true;
+    }
+
+    function getFilteredCustomerAccounts(query) {
+      const q = String(query || '').trim().toLowerCase();
       return state.customerAccounts.filter((a) => !q || a.name.toLowerCase().includes(q));
     }
 
     function renderAccountDropdown() {
       const dd = el('soAccountDropdown');
       if (!dd) return;
-      const items = getFilteredCustomerAccounts();
+      const items = getFilteredCustomerAccounts(el('soAccountSearch')?.value || '');
       dd.innerHTML = '';
       items.forEach((a) => {
         const btn = document.createElement('button');
@@ -889,6 +904,28 @@ async function signOutUser() {
       dd.hidden = items.length === 0;
     }
 
+    function renderScaleAccountDropdown() {
+      const dd = el('scaleAccountDropdown');
+      if (!dd) return;
+      const items = getFilteredCustomerAccounts(el('scaleAccountSearch')?.value || '');
+      dd.innerHTML = '';
+      items.forEach((a) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'account-option';
+        btn.setAttribute('role', 'option');
+        btn.dataset.id = a.id;
+        btn.textContent = a.name;
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          selectScaleCustomerAccount(a.id);
+        });
+        dd.appendChild(btn);
+      });
+      dd.hidden = items.length === 0;
+    }
+
     function selectCustomerAccount(id) {
       const acc = state.customerAccounts.find((x) => x.id === id);
       if (!acc) return;
@@ -900,6 +937,20 @@ async function signOutUser() {
       if (search) search.value = acc.name;
       if (hint) hint.textContent = `Selected: ${acc.name}`;
       const dd = el('soAccountDropdown');
+      if (dd) dd.hidden = true;
+    }
+
+    function selectScaleCustomerAccount(id) {
+      const acc = state.customerAccounts.find((x) => x.id === id);
+      if (!acc) return;
+      state.selectedScaleCustomerAccountId = id;
+      const hid = el('scaleAccountId');
+      const search = el('scaleAccountSearch');
+      const hint = el('scaleAccountHint');
+      if (hid) hid.value = id;
+      if (search) search.value = acc.name;
+      if (hint) hint.textContent = `Selected: ${acc.name}`;
+      const dd = el('scaleAccountDropdown');
       if (dd) dd.hidden = true;
     }
 
@@ -1141,7 +1192,9 @@ async function signOutUser() {
       persistCustomerAccounts();
       renderCustomerAccountsList();
       renderAccountDropdown();
+      renderScaleAccountDropdown();
       if (state.selectedCustomerAccountId === id) selectCustomerAccount(id);
+      if (state.selectedScaleCustomerAccountId === id) selectScaleCustomerAccount(id);
       showToast('Account updated.');
     }
 
@@ -1152,7 +1205,9 @@ async function signOutUser() {
       persistCustomerAccounts();
       renderCustomerAccountsList();
       renderAccountDropdown();
+      renderScaleAccountDropdown();
       if (state.selectedCustomerAccountId === id) clearAccountSelection();
+      if (state.selectedScaleCustomerAccountId === id) clearScaleAccountSelection();
       showToast('Account removed.');
     }
 
@@ -1386,11 +1441,7 @@ async function signOutUser() {
       renderSalesOrdersList();
       renderOrdersCalendar();
       const hint = el('soAccountHint');
-      if (hint && !state.selectedCustomerAccountId) {
-        hint.textContent = state.customerAccounts.length
-          ? 'Search and select a customer account.'
-          : 'No accounts yet — an admin can add customer accounts in Settings.';
-      }
+      if (hint && !state.selectedCustomerAccountId) hint.textContent = accountHintText();
       renderAccountDropdown();
     }
 
@@ -1398,12 +1449,12 @@ async function signOutUser() {
       el('scaleTruck').value = '';
       const tickEl = el('scaleTicket');
       if (tickEl) tickEl.value = String(nextScaleTicketNumberForDate(state.deskDate));
+      clearScaleAccountSelection();
       const timeEl = el('scaleTime');
       if (timeEl) timeEl.value = nowCentralTimeHHMM();
       el('scaleNet').value = '';
       el('scaleMaterial').value = '';
       el('scaleOrderedTons').value = '';
-      el('scaleCustomer').value = '';
       el('scaleJob').value = '';
       el('scaleLoads').value = '';
       const st = el('scaleStatus');
@@ -1414,10 +1465,16 @@ async function signOutUser() {
     function addScaleTicket() {
       const truck = el('scaleTruck').value.trim();
       const net = parseFloat(el('scaleNet').value);
-      const customer = el('scaleCustomer').value.trim();
+      const accountId = el('scaleAccountId')?.value?.trim() ?? '';
+      const accRecord = accountId ? state.customerAccounts.find((x) => x.id === accountId) : null;
+      const customer = (accRecord ? accRecord.name : (el('scaleAccountSearch')?.value ?? '')).trim();
       const orderedTons = parseFloat(el('scaleOrderedTons').value);
       if (!truck || Number.isNaN(net)) {
         showToast('Enter truck # and net tons.');
+        return;
+      }
+      if (state.customerAccounts.length > 0 && !accountId) {
+        showToast('Select a customer account from the list.');
         return;
       }
       if (!customer || Number.isNaN(orderedTons)) {
@@ -1616,6 +1673,9 @@ async function signOutUser() {
       renderMiniCalendar();
       syncScaleTimeLiveToCentral();
       autofillScaleTicketNumber();
+      const scaleHint = el('scaleAccountHint');
+      if (scaleHint && !state.selectedScaleCustomerAccountId) scaleHint.textContent = accountHintText();
+      renderScaleAccountDropdown();
     }
 
     function formatMoney(v) { return `$${Number(v || 0).toFixed(2)}`; }
@@ -2396,10 +2456,18 @@ async function signOutUser() {
       soAccountSearch.addEventListener('input', () => renderAccountDropdown());
       soAccountSearch.addEventListener('focus', () => renderAccountDropdown());
     }
+
+    const scaleAccountSearch = el('scaleAccountSearch');
+    if (scaleAccountSearch) {
+      scaleAccountSearch.addEventListener('input', () => renderScaleAccountDropdown());
+      scaleAccountSearch.addEventListener('focus', () => renderScaleAccountDropdown());
+    }
     document.addEventListener('click', (e) => {
       if (!e.target.closest?.('.account-combo')) {
         const dd = el('soAccountDropdown');
         if (dd) dd.hidden = true;
+        const sdd = el('scaleAccountDropdown');
+        if (sdd) sdd.hidden = true;
       }
     });
 
