@@ -325,12 +325,6 @@ function navHeaderHiText() {
   return name ? `Hi, ${name}` : 'Hi';
 }
 
-/** Account dropdown button label — avoids duplicating the header “Hi, …” line. */
-function navUserMenuButtonLabel() {
-  if (!state.session?.user) return 'Account';
-  return state.isAdmin ? 'Account · Admin' : 'Account';
-}
-
 function updateDashboardGreeting() {
   const greet = el('homeDashboardGreeting');
   if (!greet) return;
@@ -344,71 +338,23 @@ function updateDashboardGreeting() {
   greet.textContent = name ? `Hi, ${name}` : 'Hi';
 }
 
-function closeNavUserDropdown() {
-  const dd = el('navUserDropdown');
-  const tr = el('navUserTrigger');
-  const root = el('navUserMenuRoot');
-  if (dd) dd.hidden = true;
-  if (tr) tr.setAttribute('aria-expanded', 'false');
-  root?.classList.remove('nav-user-menu--open');
-}
-
-function openNavUserDropdown() {
-  const dd = el('navUserDropdown');
-  const tr = el('navUserTrigger');
-  const root = el('navUserMenuRoot');
-  if (dd) dd.hidden = false;
-  if (tr) tr.setAttribute('aria-expanded', 'true');
-  root?.classList.add('nav-user-menu--open');
-}
-
-function initNavUserMenu() {
-  if (initNavUserMenu.done) return;
-  initNavUserMenu.done = true;
-  const trig = el('navUserTrigger');
-  if (trig) {
-    trig.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const dd = el('navUserDropdown');
-      if (!dd) return;
-      if (dd.hidden) openNavUserDropdown();
-      else closeNavUserDropdown();
-    });
-  }
-  document.addEventListener('click', (e) => {
-    const root = el('navUserMenuRoot');
-    if (!root || root.hidden) return;
-    if (e.target.closest('#navUserMenuRoot')) return;
-    closeNavUserDropdown();
-  });
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') closeNavUserDropdown();
-  });
-}
-
 function updateAuthNav() {
   const loginBtn = el('authLoginBtn');
-  const userRoot = el('navUserMenuRoot');
-  const labelEl = el('navUserLabel');
   const headerGreet = el('navHeaderGreeting');
   if (!supabaseClient) {
     if (loginBtn) {
       loginBtn.textContent = 'Offline';
       loginBtn.hidden = false;
     }
-    if (userRoot) userRoot.hidden = true;
     if (headerGreet) {
       headerGreet.hidden = true;
       headerGreet.textContent = '';
     }
-    closeNavUserDropdown();
     updateDashboardGreeting();
     return;
   }
   if (state.session?.user) {
     if (loginBtn) loginBtn.hidden = true;
-    if (userRoot) userRoot.hidden = false;
-    if (labelEl) labelEl.textContent = navUserMenuButtonLabel();
     if (headerGreet) {
       headerGreet.textContent = navHeaderHiText();
       headerGreet.hidden = false;
@@ -418,12 +364,10 @@ function updateAuthNav() {
       loginBtn.hidden = false;
       loginBtn.textContent = 'Login';
     }
-    if (userRoot) userRoot.hidden = true;
     if (headerGreet) {
       headerGreet.hidden = true;
       headerGreet.textContent = '';
     }
-    closeNavUserDropdown();
   }
   updateDashboardGreeting();
 }
@@ -458,7 +402,6 @@ async function loadCloudData() {
 
 async function signOutUser() {
   if (!supabaseClient) return;
-  closeNavUserDropdown();
   const { error } = await supabaseClient.auth.signOut();
   if (error) {
     showToast(error.message);
@@ -704,6 +647,30 @@ async function signOutUser() {
       return new Date(y, mo - 1, d);
     }
 
+    const CENTRAL_TZ = 'America/Chicago';
+
+    /** Current clock in US Central, formatted for `<input type="time">` (24h HH:mm). */
+    function nowCentralTimeHHMM() {
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: CENTRAL_TZ,
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      }).formatToParts(new Date());
+      const hour = parts.find((p) => p.type === 'hour')?.value ?? '0';
+      const minute = parts.find((p) => p.type === 'minute')?.value ?? '0';
+      return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+    }
+
+    /** Keep scale time aligned to live US Central while on the desk view (pause while the time input is focused). */
+    function syncScaleTimeLiveToCentral() {
+      if (state.currentView !== 'deskView') return;
+      const input = el('scaleTime');
+      if (!input) return;
+      if (document.activeElement === input) return;
+      input.value = nowCentralTimeHHMM();
+    }
+
     function escapeHtml(str) {
       return String(str)
         .replace(/&/g, '&amp;')
@@ -924,6 +891,9 @@ async function signOutUser() {
       if (adminBlk) adminBlk.hidden = !canManage;
       if (locked) locked.hidden = canManage;
       if (canManage) renderCustomerAccountsList();
+
+      const adminBadge = el('settingsProfileAdminBadge');
+      if (adminBadge) adminBadge.hidden = !loggedIn || !canManage;
     }
 
     async function saveGreetingName() {
@@ -983,6 +953,80 @@ async function signOutUser() {
       updateDashboardGreeting();
       renderSettingsPage();
       showToast('Greeting saved.', 3500);
+    }
+
+    async function changeProfilePassword() {
+      if (!supabaseClient || !state.session?.user?.email) {
+        showToast('Sign in to change your password.');
+        return;
+      }
+      const curEl = el('settingsCurrentPassword');
+      const newEl = el('settingsNewPassword');
+      const confEl = el('settingsConfirmPassword');
+      const current = curEl?.value ?? '';
+      const next = newEl?.value ?? '';
+      const confirm = confEl?.value ?? '';
+
+      if (!current.length) {
+        showToast('Enter your current password.');
+        return;
+      }
+      if (!next.length) {
+        showToast('Enter a new password.');
+        return;
+      }
+      if (next.length < 6) {
+        showToast('New password must be at least 6 characters.');
+        return;
+      }
+      if (next !== confirm) {
+        showToast('New password and confirmation do not match.');
+        return;
+      }
+      if (next === current) {
+        showToast('Choose a different password than your current one.');
+        return;
+      }
+
+      const email = state.session.user.email;
+      const { data: signData, error: verifyErr } = await supabaseClient.auth.signInWithPassword({
+        email,
+        password: current
+      });
+
+      if (verifyErr || !signData?.session) {
+        showToast('Current password is incorrect.');
+        return;
+      }
+
+      state.session = signData.session;
+      state.user = signData.user ?? signData.session.user;
+
+      const { data: pwdData, error: pwdErr } = await supabaseClient.auth.updateUser({
+        password: next
+      });
+
+      if (pwdErr) {
+        console.error(pwdErr);
+        showToast(pwdErr.message || 'Could not update password.');
+        return;
+      }
+
+      if (pwdData?.user && state.session) {
+        state.session = { ...state.session, user: pwdData.user };
+        state.user = pwdData.user;
+      } else {
+        const { data: sessionWrap } = await supabaseClient.auth.getSession();
+        if (sessionWrap?.session) {
+          state.session = sessionWrap.session;
+          state.user = sessionWrap.session.user;
+        }
+      }
+
+      if (curEl) curEl.value = '';
+      if (newEl) newEl.value = '';
+      if (confEl) confEl.value = '';
+      showToast('Password updated.', 4000);
     }
 
     function renderCustomerAccountsList() {
@@ -1304,7 +1348,8 @@ async function signOutUser() {
     function clearScaleForm() {
       el('scaleTruck').value = '';
       el('scaleTicket').value = '';
-      el('scaleTime').value = '';
+      const timeEl = el('scaleTime');
+      if (timeEl) timeEl.value = nowCentralTimeHHMM();
       el('scaleNet').value = '';
       el('scaleMaterial').value = '';
       el('scaleNotes').value = '';
@@ -1493,6 +1538,7 @@ async function signOutUser() {
       renderScaleTable();
       renderOrderTable();
       renderMiniCalendar();
+      syncScaleTimeLiveToCentral();
     }
 
     function formatMoney(v) { return `$${Number(v || 0).toFixed(2)}`; }
@@ -2279,6 +2325,11 @@ async function signOutUser() {
       });
     }
 
+    let scaleTimeLiveIntervalId = null;
+    if (scaleTimeLiveIntervalId == null) {
+      scaleTimeLiveIntervalId = setInterval(syncScaleTimeLiveToCentral, 1000);
+    }
+
     const ordersPicker = el('ordersDatePicker');
     if (ordersPicker) {
       ordersPicker.addEventListener('change', (e) => {
@@ -2307,7 +2358,6 @@ async function signOutUser() {
       openBuilder,
       openAdmin,
       toggleAuth,
-      closeNavUserDropdown,
       deskGoToToday,
       setOrdersBoardDate,
       ordersGoToToday,
@@ -2334,14 +2384,13 @@ async function signOutUser() {
       setTheme,
       selectCustomerAccount,
       addCustomerAccountFromSettings,
-      saveGreetingName
+      saveGreetingName,
+      changeProfilePassword
     });
 
     (async function bootstrapDesk() {
       initDeskDate();
       syncThemeRadios();
-      initNavUserMenu();
-
       if (!initSupabase()) {
         loadDeskStorage();
         loadSalesOrdersStorage();

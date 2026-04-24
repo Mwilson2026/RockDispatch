@@ -1,6 +1,6 @@
 # RockDispatch
 
-Vite + vanilla JS single-page app. Scale desk data uses **localStorage** offline, or syncs to **Supabase** when environment variables are set.
+Vite + vanilla JS single-page app. Scale data uses **localStorage** offline, or syncs to **Supabase** when environment variables are set.
 
 ## Local development
 
@@ -27,7 +27,7 @@ The UI is split into **routes** so you can work on one area at a time: **`/`** i
    - `supabase/migrations/20260423180000_desk_tables.sql` — `scale_tickets`, `daily_orders`
    - `supabase/migrations/20260424190000_dispatch_backend.sql` — `load_templates`, `issued_quotes`, `pinned_template_ids`
 
-With env vars set, the app syncs the **scale desk**, **load templates** (merged with built-in defaults), **issued dispatch rows**, and **pinned** template ids.
+With env vars set, the app syncs the **scale** view, **load templates** (merged with built-in defaults), **issued dispatch rows**, and **pinned** template ids.
 
 ### Authentication (required for cloud sync)
 

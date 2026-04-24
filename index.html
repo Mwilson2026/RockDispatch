@@ -23,7 +23,7 @@
       <nav class="nav-links">
         <a href="/" data-route>Home</a>
         <a href="/orders" data-route>Orders</a>
-        <a href="/desk" data-route>Scale desk</a>
+        <a href="/desk" data-route>Scale</a>
         <a href="/ops" data-route>Ops desk</a>
         <a href="/admin" data-route>Admin</a>
         <a href="/settings" data-route>Settings</a>
@@ -32,25 +32,7 @@
       <div class="nav-actions">
         <span id="navHeaderGreeting" class="nav-header-greet" hidden aria-live="polite"></span>
         <button type="button" class="icon-btn" onclick="navigate('/settings')" title="Settings" aria-label="Settings">⚙</button>
-        <button type="button" class="icon-btn" onclick="toggleAuth()" aria-label="Account">◎</button>
         <button type="button" class="ghost-btn menu-persist" onclick="toggleAuth(true)" id="authLoginBtn">Login</button>
-        <div class="nav-user-menu" id="navUserMenuRoot" hidden>
-          <button
-            type="button"
-            class="ghost-btn menu-persist nav-user-trigger"
-            id="navUserTrigger"
-            aria-expanded="false"
-            aria-haspopup="true"
-            aria-controls="navUserDropdown"
-          >
-            <span id="navUserLabel">Account</span>
-            <span class="nav-user-chevron" aria-hidden="true">▾</span>
-          </button>
-          <div class="nav-user-dropdown" id="navUserDropdown" role="menu" hidden>
-            <button type="button" role="menuitem" class="nav-user-item" onclick="navigate('/settings'); closeNavUserDropdown()">Settings</button>
-            <button type="button" role="menuitem" class="nav-user-item nav-user-item--danger" onclick="signOutUser(); closeNavUserDropdown()">Log out</button>
-          </div>
-        </div>
         <button type="button" class="summary-btn" onclick="navigate('/builder')">Dispatch <span class="badge-count" id="builderCount">0</span></button>
       </div>
     </header>
@@ -72,7 +54,7 @@
             <p class="arc-home__tagline">Rock-solid dispatch for quarries and construction — tonnage, timing, and trucks in one place.</p>
             <div class="arc-home__actions">
               <button type="button" class="primary-btn arc-home__cta" onclick="navigate('/orders')">Orders board</button>
-              <button type="button" class="ghost-btn arc-home__cta2" onclick="navigate('/desk')">Scale desk</button>
+              <button type="button" class="ghost-btn arc-home__cta2" onclick="navigate('/desk')">Scale</button>
               <button type="button" class="ghost-btn arc-home__cta2" onclick="navigate('/builder')">Dispatch builder</button>
             </div>
             <ul class="arc-home__features" aria-label="Highlights">
@@ -395,7 +377,7 @@
             <div>
               <div class="section-label">Settings</div>
               <h2>Preferences</h2>
-              <p style="color: var(--muted); margin-top: 10px; font-size: 14px;">Use <strong>Profile</strong> for your login email and <strong>Greeting name</strong> (below) for the header — not your email.</p>
+              <p style="color: var(--muted); margin-top: 10px; font-size: 14px;">Use <strong>Profile</strong> for email, greeting, and signing out — not your email in the header.</p>
             </div>
             <button type="button" class="ghost-btn" onclick="navigate('/')">Back</button>
           </div>
@@ -428,6 +410,42 @@
                       <button type="button" class="primary-btn" onclick="saveGreetingName()">Save greeting</button>
                     </div>
                     <p class="settings-greeting-preview" id="settingsGreetingPreview" aria-live="polite" style="margin-top: 12px; font-size: 14px; color: var(--muted);"></p>
+                  </div>
+
+                  <div class="settings-password-block" style="margin-top: 24px; padding-top: 22px; border-top: 1px solid var(--line);">
+                    <label class="section-label" for="settingsCurrentPassword">Change password</label>
+                    <p style="color: var(--muted); margin-bottom: 14px; font-size: 14px;">Enter your current password, then choose a new one.</p>
+                    <div class="field-grid settings-password-fields">
+                      <input
+                        id="settingsCurrentPassword"
+                        type="password"
+                        placeholder="Current password"
+                        autocomplete="current-password"
+                      />
+                      <input
+                        id="settingsNewPassword"
+                        type="password"
+                        placeholder="New password"
+                        autocomplete="new-password"
+                      />
+                      <input
+                        id="settingsConfirmPassword"
+                        type="password"
+                        placeholder="Confirm new password"
+                        autocomplete="new-password"
+                      />
+                    </div>
+                    <div class="action-row" style="margin-top: 14px;">
+                      <button type="button" class="primary-btn" onclick="changeProfilePassword()">Update password</button>
+                    </div>
+                  </div>
+
+                  <div class="settings-account-actions" style="margin-top: 24px; padding-top: 22px; border-top: 1px solid var(--line);">
+                    <div class="section-label">Account</div>
+                    <p id="settingsProfileAdminBadge" hidden style="color: var(--muted); font-size: 14px; margin: 10px 0 14px;">
+                      You have administrator access.
+                    </p>
+                    <button type="button" class="ghost-btn settings-log-out-btn" onclick="signOutUser()">Log out</button>
                   </div>
                 </div>
               </section>

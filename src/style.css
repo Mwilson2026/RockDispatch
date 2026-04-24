@@ -1079,6 +1079,37 @@
       align-items: start;
     }
 
+    .settings-account-actions .settings-log-out-btn {
+      color: #e85d6a;
+      font-weight: 600;
+      border-color: rgba(232, 93, 106, 0.45);
+    }
+
+    [data-theme="light"] .settings-account-actions .settings-log-out-btn {
+      color: #b8323f;
+      border-color: rgba(184, 50, 63, 0.35);
+    }
+
+    .settings-password-fields {
+      grid-template-columns: 1fr;
+      max-width: 420px;
+      margin-top: 0;
+    }
+
+    .settings-password-fields input {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text);
+      font-size: 14px;
+    }
+
+    [data-theme="light"] .settings-password-fields input {
+      background: rgba(0, 0, 0, 0.04);
+    }
+
     .settings-nav {
       display: flex;
       flex-direction: column;
