@@ -318,7 +318,7 @@ function closeAuthModal() {
   setAuthModalDismissable(true);
 }
 
-/** Text for the always-visible header span (Settings → Name → profiles.display_name). */
+/** Text for the always-visible header span (Settings → Profile → Greeting name). */
 function navHeaderHiText() {
   if (!supabaseClient || !state.session?.user) return '';
   const name = state.profileDisplayName?.trim();
@@ -905,23 +905,17 @@ async function signOutUser() {
         emailEl.textContent = state.session.user.email || '—';
       }
 
-      const noff = el('settingsNameOffline');
-      const nsignout = el('settingsNameSignedOut');
-      const nsignin = el('settingsNameSignedIn');
-      const nameInp = el('settingsDisplayNameInput');
-      const preview = el('settingsNamePreview');
-      if (noff) noff.hidden = hasCloud;
-      if (nsignout) nsignout.hidden = !hasCloud || loggedIn;
-      if (nsignin) nsignin.hidden = !hasCloud || !loggedIn;
-      if (loggedIn && nameInp && document.activeElement !== nameInp) {
-        nameInp.value = state.profileDisplayName ?? '';
+      const greetInp = el('settingsGreetingNameInput');
+      const greetPreview = el('settingsGreetingPreview');
+      if (loggedIn && greetInp && document.activeElement !== greetInp) {
+        greetInp.value = state.profileDisplayName ?? '';
       }
-      if (preview && loggedIn) {
-        const raw = (nameInp?.value ?? '').trim();
+      if (greetPreview && loggedIn) {
+        const raw = (greetInp?.value ?? '').trim();
         const show = raw || state.profileDisplayName?.trim();
-        preview.textContent = show
-          ? `Home page & header will show: Hi, ${show}`
-          : 'Home page & header will show: Hi — add a name above.';
+        greetPreview.textContent = show
+          ? `Header & home will show: Hi, ${show}`
+          : 'Header & home will show: Hi — enter a greeting above and save.';
       }
 
       const adminBlk = el('settingsAccountsAdminBlock');
@@ -932,13 +926,13 @@ async function signOutUser() {
       if (canManage) renderCustomerAccountsList();
     }
 
-    async function saveProfileDisplayName() {
+    async function saveGreetingName() {
       if (!supabaseClient || !state.session?.user?.id) {
-        showToast('Sign in to save your name.');
+        showToast('Sign in to save your greeting.');
         return;
       }
       const uid = state.session.user.id;
-      const inp = el('settingsDisplayNameInput');
+      const inp = el('settingsGreetingNameInput');
       const raw = (inp?.value ?? '').trim();
       const display_name = raw.length ? raw : null;
 
@@ -969,14 +963,14 @@ async function signOutUser() {
           /display_name|column|policy|permission|RLS|row-level|violates/i.test(String(res.error.message || ''))
             ? ' If the database is not migrated, your project still needs profiles policies; auth save should work after refresh.'
             : '';
-        showToast((authErr.message || res.error.message || 'Could not save name.') + hint);
+        showToast((authErr.message || res.error.message || 'Could not save greeting.') + hint);
         return;
       }
 
-      if (authErr) console.warn('[Rock Dispatch] Saved display name to profiles; auth metadata failed:', authErr);
+      if (authErr) console.warn('[Rock Dispatch] Saved greeting to profiles; auth metadata failed:', authErr);
       if (res.error)
         console.warn(
-          '[Rock Dispatch] Saved display name to auth metadata; profiles upsert failed (run migrations if you need DB copy):',
+          '[Rock Dispatch] Saved greeting to auth metadata; profiles upsert failed (run migrations if you need DB copy):',
           res.error
         );
 
@@ -988,7 +982,7 @@ async function signOutUser() {
       updateAuthNav();
       updateDashboardGreeting();
       renderSettingsPage();
-      showToast('Name saved.', 3500);
+      showToast('Greeting saved.', 3500);
     }
 
     function renderCustomerAccountsList() {
@@ -1071,7 +1065,6 @@ async function signOutUser() {
 
     function showSettingsSection(panel) {
       const prof = el('settingsPanelProfile');
-      const namePan = el('settingsPanelName');
       const app = el('settingsPanelAppearance');
       const acc = el('settingsPanelAccounts');
       const navBtns = document.querySelectorAll('.settings-nav-btn');
@@ -1080,10 +1073,9 @@ async function signOutUser() {
         b.classList.toggle('active', active);
       });
       if (prof) prof.hidden = panel !== 'profile';
-      if (namePan) namePan.hidden = panel !== 'name';
       if (app) app.hidden = panel !== 'appearance';
       if (acc) acc.hidden = panel !== 'accounts';
-      if (panel === 'accounts' || panel === 'profile' || panel === 'name') renderSettingsPage();
+      if (panel === 'accounts' || panel === 'profile') renderSettingsPage();
     }
 
     let settingsUiInitialized = false;
@@ -1098,10 +1090,10 @@ async function signOutUser() {
           if (r.checked) setTheme(r.value);
         });
       });
-      const nameInp = el('settingsDisplayNameInput');
-      if (nameInp && !nameInp.dataset.livePreview) {
-        nameInp.dataset.livePreview = '1';
-        nameInp.addEventListener('input', () => renderSettingsPage());
+      const greetInp = el('settingsGreetingNameInput');
+      if (greetInp && !greetInp.dataset.livePreview) {
+        greetInp.dataset.livePreview = '1';
+        greetInp.addEventListener('input', () => renderSettingsPage());
       }
     }
 
@@ -2342,7 +2334,7 @@ async function signOutUser() {
       setTheme,
       selectCustomerAccount,
       addCustomerAccountFromSettings,
-      saveProfileDisplayName
+      saveGreetingName
     });
 
     (async function bootstrapDesk() {

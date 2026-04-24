@@ -395,7 +395,7 @@
             <div>
               <div class="section-label">Settings</div>
               <h2>Preferences</h2>
-              <p style="color: var(--muted); margin-top: 10px; font-size: 14px;"><strong>Profile</strong> shows your login email. <strong>Name</strong> controls the Hi greeting on the home page and header — not your email.</p>
+              <p style="color: var(--muted); margin-top: 10px; font-size: 14px;">Use <strong>Profile</strong> for your login email and <strong>Greeting name</strong> (below) for the header — not your email.</p>
             </div>
             <button type="button" class="ghost-btn" onclick="navigate('/')">Back</button>
           </div>
@@ -403,7 +403,6 @@
           <div class="settings-layout">
             <nav class="settings-nav" aria-label="Settings sections">
               <button type="button" class="settings-nav-btn active" data-settings-panel="profile">Profile</button>
-              <button type="button" class="settings-nav-btn" data-settings-panel="name">Name</button>
               <button type="button" class="settings-nav-btn" data-settings-panel="appearance">Appearance</button>
               <button type="button" class="settings-nav-btn" data-settings-panel="accounts">Customer accounts</button>
             </nav>
@@ -420,25 +419,16 @@
                 <div id="settingsProfileSignedIn" hidden>
                   <label class="section-label" for="settingsEmailDisplay">Login email</label>
                   <div id="settingsEmailDisplay" class="settings-email-readonly" aria-live="polite">—</div>
-                </div>
-              </section>
 
-              <section id="settingsPanelName" class="settings-panel" hidden>
-                <h3>Name</h3>
-                <p style="color: var(--muted); margin-bottom: 16px;">This name appears as <strong>Hi, (name)</strong> on the home page and in the header. It does not change your login email.</p>
-                <div id="settingsNameOffline" hidden>
-                  <p style="color: var(--muted);">Connect Supabase to save your display name.</p>
-                </div>
-                <div id="settingsNameSignedOut" hidden>
-                  <p style="color: var(--muted);">Sign in to set the name shown on the dashboard.</p>
-                </div>
-                <div id="settingsNameSignedIn" hidden>
-                  <label class="section-label" for="settingsDisplayNameInput">Display name</label>
-                  <input id="settingsDisplayNameInput" type="text" placeholder="e.g. Alex" maxlength="120" autocomplete="name" />
-                  <div class="action-row" style="margin-top: 14px;">
-                    <button type="button" class="primary-btn" onclick="saveProfileDisplayName()">Save name</button>
+                  <div class="settings-greeting-block" style="margin-top: 24px; padding-top: 22px; border-top: 1px solid var(--line);">
+                    <label class="section-label" for="settingsGreetingNameInput">Greeting name</label>
+                    <p style="color: var(--muted); margin-bottom: 14px; font-size: 14px;">Saved text appears in the header and home page as <strong>Hi, …</strong>. It does not change your login email.</p>
+                    <input id="settingsGreetingNameInput" type="text" placeholder="e.g. Matt" maxlength="120" autocomplete="off" />
+                    <div class="action-row" style="margin-top: 14px;">
+                      <button type="button" class="primary-btn" onclick="saveGreetingName()">Save greeting</button>
+                    </div>
+                    <p class="settings-greeting-preview" id="settingsGreetingPreview" aria-live="polite" style="margin-top: 12px; font-size: 14px; color: var(--muted);"></p>
                   </div>
-                  <p class="settings-name-preview" id="settingsNamePreview" aria-live="polite"></p>
                 </div>
               </section>
 
