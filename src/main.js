@@ -1587,22 +1587,27 @@ async function signOutUser() {
         showToast('Enter an account name.');
         return;
       }
-      if (state.customerAccounts.some((a) => String(a?.name || '').toLowerCase() === name.toLowerCase())) {
-        showToast('That account name already exists.');
-        return;
-      }
-      const row = { id: `CA-${Date.now()}`, name };
-      state.customerAccounts.push(row);
+      const existing = state.customerAccounts.find(
+        (a) => String(a?.name || '').trim().toLowerCase() === name.toLowerCase()
+      );
+      const row = existing || { id: `CA-${Date.now()}`, name };
+      row.name = name;
+      if (!existing) state.customerAccounts.push(row);
       if (!persistCustomerAccounts()) {
         showToast('Could not save customer accounts in local storage.');
         return;
       }
       if (state.session?.user && supabaseClient) {
-        const ok = await sbUpsertCustomerAccount(row);
-        if (!ok) {
-          showToast('Saved locally. Could not sync customer account globally.');
-        } else {
-          await pullCustomerAccountsFromSupabase();
+        try {
+          const ok = await sbUpsertCustomerAccount(row);
+          if (!ok) {
+            showToast('Saved locally. Could not sync customer account globally.');
+          } else {
+            await pullCustomerAccountsFromSupabase();
+          }
+        } catch (e) {
+          console.error(e);
+          showToast('Saved locally. Could not refresh customer accounts from cloud.');
         }
       } else {
         loadCustomerAccountsStorage();
@@ -1613,7 +1618,7 @@ async function signOutUser() {
       renderScaleAccountDropdown();
       clearAccountSelection();
       clearScaleAccountSelection();
-      showToast('Customer account added.');
+      showToast(existing ? 'Customer account updated.' : 'Customer account added.');
     }
 
     async function renameCustomerAccount(id) {
@@ -1971,11 +1976,16 @@ async function signOutUser() {
         return;
       }
       if (state.session?.user && supabaseClient) {
-        const ok = await sbUpsertTruckTare(row);
-        if (!ok) {
-          showToast('Saved locally. Could not sync truck tare globally.');
-        } else {
-          await pullTruckTaresFromSupabase();
+        try {
+          const ok = await sbUpsertTruckTare(row);
+          if (!ok) {
+            showToast('Saved locally. Could not sync truck tare globally.');
+          } else {
+            await pullTruckTaresFromSupabase();
+          }
+        } catch (e) {
+          console.error(e);
+          showToast('Saved locally. Could not refresh truck tares from cloud.');
         }
       } else {
         loadTruckTaresStorage();
