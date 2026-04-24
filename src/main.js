@@ -2013,6 +2013,10 @@ async function signOutUser() {
           });
           if (error) throw error;
           if (data.session) {
+            state.session = data.session;
+            state.user = data.session.user;
+            await fetchUserProfile();
+            updateAuthNav();
             toggleAuth(false);
             showToast('Account created.');
           } else {
@@ -2024,10 +2028,18 @@ async function signOutUser() {
             showToast('Enter a valid username or email.');
             return;
           }
-          const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+          const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
           if (error) throw error;
-          toggleAuth(false);
-          showToast('Signed in.');
+          if (data.session) {
+            state.session = data.session;
+            state.user = data.session.user;
+            await fetchUserProfile();
+            updateAuthNav();
+            toggleAuth(false);
+            showToast('Signed in.');
+          } else {
+            showToast('Account pending confirmation — check your email, then sign in.');
+          }
         }
       } catch (err) {
         const msg = err.message || String(err);
