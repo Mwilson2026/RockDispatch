@@ -20,21 +20,33 @@
         </div>
       </div>
 
-      <nav class="nav-links">
-        <a href="/" data-route>Home</a>
-        <a href="/orders" data-route>Orders</a>
-        <a href="/desk" data-route>Scale</a>
-        <a href="/customer-accounts" data-route>Customer Accounts</a>
-        <a href="/stored-truck-tares" data-route>Stored Truck Tares</a>
-        <a href="/admin" data-route>Admin</a>
-        <a href="/settings" data-route>Settings</a>
-      </nav>
-
       <div class="nav-actions">
         <span id="navHeaderGreeting" class="nav-header-greet" hidden aria-live="polite"></span>
-        <button type="button" class="icon-btn" onclick="navigate('/settings')" title="Settings" aria-label="Settings">⚙</button>
-        <button type="button" class="ghost-btn menu-persist" onclick="toggleAuth(true)" id="authLoginBtn">Login</button>
-        <button type="button" class="summary-btn" onclick="navigate('/builder')">Dispatch <span class="badge-count" id="builderCount">0</span></button>
+        <div class="header-menu">
+          <button
+            type="button"
+            class="ghost-btn menu-persist header-menu-btn"
+            id="headerMenuBtn"
+            onclick="toggleHeaderMenu()"
+            aria-haspopup="true"
+            aria-expanded="false"
+            aria-controls="headerMenuDropdown"
+          >
+            Menu
+          </button>
+          <div id="headerMenuDropdown" class="header-menu-dropdown" hidden>
+            <a href="/" data-route>Home</a>
+            <a href="/orders" data-route>Orders</a>
+            <a href="/desk" data-route>Scale</a>
+            <a href="/customer-accounts" data-route>Customer Accounts</a>
+            <a href="/stored-truck-tares" data-route>Stored Truck Tares</a>
+            <a href="/builder" data-route>Dispatch Builder</a>
+            <a href="/admin" data-route>Admin</a>
+            <a href="/settings" data-route>Settings</a>
+            <button type="button" id="headerMenuLoginAction" onclick="closeHeaderMenu(); toggleAuth(true)">Login</button>
+            <button type="button" id="headerMenuLogoutAction" onclick="closeHeaderMenu(); signOutUser()" hidden>Log out</button>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -127,10 +139,6 @@
                 <div class="field-with-label">
                   <label class="field-label" for="scaleMaterial">Material</label>
                   <input id="scaleMaterial" placeholder="Material" list="scaleMaterialList" autocomplete="off" />
-                </div>
-                <div class="field-with-label">
-                  <label class="field-label" for="scaleOrderedTons">Tons Ordered</label>
-                  <input id="scaleOrderedTons" type="number" step="0.1" placeholder="Tons ordered" />
                 </div>
               </div>
               <datalist id="scaleMaterialList">
@@ -590,6 +598,10 @@
             <div class="field-with-label">
               <label class="field-label" for="newTruckNumber">Truck Number</label>
               <input id="newTruckNumber" placeholder="e.g. T-104" autocomplete="off" />
+            </div>
+            <div class="field-with-label">
+              <label class="field-label" for="newTruckCompanyName">Company Name</label>
+              <input id="newTruckCompanyName" placeholder="e.g. Wilson Hauling" autocomplete="off" />
             </div>
             <div class="field-with-label">
               <label class="field-label" for="newTruckTareWeight">Tare Weight</label>

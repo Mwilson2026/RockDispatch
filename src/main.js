@@ -334,13 +334,15 @@ function updateDashboardGreeting() {
 }
 
 function updateAuthNav() {
-  const loginBtn = el('authLoginBtn');
   const headerGreet = el('navHeaderGreeting');
+  const loginAction = el('headerMenuLoginAction');
+  const logoutAction = el('headerMenuLogoutAction');
   if (!supabaseClient) {
-    if (loginBtn) {
-      loginBtn.textContent = 'Offline';
-      loginBtn.hidden = false;
+    if (loginAction) {
+      loginAction.textContent = 'Offline mode';
+      loginAction.disabled = true;
     }
+    if (logoutAction) logoutAction.hidden = true;
     if (headerGreet) {
       headerGreet.hidden = true;
       headerGreet.textContent = '';
@@ -349,22 +351,45 @@ function updateAuthNav() {
     return;
   }
   if (state.session?.user) {
-    if (loginBtn) loginBtn.hidden = true;
+    if (loginAction) {
+      loginAction.hidden = true;
+      loginAction.disabled = false;
+      loginAction.textContent = 'Login';
+    }
+    if (logoutAction) logoutAction.hidden = false;
     if (headerGreet) {
       headerGreet.textContent = navHeaderHiText();
       headerGreet.hidden = false;
     }
   } else {
-    if (loginBtn) {
-      loginBtn.hidden = false;
-      loginBtn.textContent = 'Login';
+    if (loginAction) {
+      loginAction.hidden = false;
+      loginAction.disabled = false;
+      loginAction.textContent = 'Login';
     }
+    if (logoutAction) logoutAction.hidden = true;
     if (headerGreet) {
       headerGreet.hidden = true;
       headerGreet.textContent = '';
     }
   }
   updateDashboardGreeting();
+}
+
+function closeHeaderMenu() {
+  const dd = el('headerMenuDropdown');
+  const btn = el('headerMenuBtn');
+  if (dd) dd.hidden = true;
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+}
+
+function toggleHeaderMenu(forceOpen) {
+  const dd = el('headerMenuDropdown');
+  const btn = el('headerMenuBtn');
+  if (!dd || !btn) return;
+  const open = typeof forceOpen === 'boolean' ? forceOpen : dd.hidden;
+  dd.hidden = !open;
+  btn.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
 
 function resetStateAfterSignOut() {
@@ -928,7 +953,12 @@ async function signOutUser() {
 
     function getFilteredTruckTares(query) {
       const q = String(query || '').trim().toLowerCase();
-      return state.truckTares.filter((t) => !q || t.truck.toLowerCase().includes(q));
+      return state.truckTares.filter((t) => {
+        if (!q) return true;
+        const truck = String(t.truck || '').toLowerCase();
+        const company = String(t.companyName || '').toLowerCase();
+        return truck.includes(q) || company.includes(q);
+      });
     }
 
     function renderAccountDropdown() {
@@ -986,7 +1016,10 @@ async function signOutUser() {
         btn.className = 'account-option';
         btn.setAttribute('role', 'option');
         btn.dataset.id = t.id;
-        btn.textContent = `${t.truck} · tare ${Number(t.tareWeight).toFixed(2)}`;
+        const company = String(t.companyName || '').trim();
+        btn.textContent = company
+          ? `${t.truck} · ${company} · tare ${Number(t.tareWeight).toFixed(2)}`
+          : `${t.truck} · tare ${Number(t.tareWeight).toFixed(2)}`;
         btn.addEventListener('click', (e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -1034,7 +1067,12 @@ async function signOutUser() {
       const hint = el('scaleTruckHint');
       if (hid) hid.value = id;
       if (search) search.value = t.truck;
-      if (hint) hint.textContent = `Selected: ${t.truck} (tare ${Number(t.tareWeight).toFixed(2)})`;
+      if (hint) {
+        const company = String(t.companyName || '').trim();
+        hint.textContent = company
+          ? `Selected: ${t.truck} (${company}, tare ${Number(t.tareWeight).toFixed(2)})`
+          : `Selected: ${t.truck} (tare ${Number(t.tareWeight).toFixed(2)})`;
+      }
       const tareEl = el('scaleTareWeight');
       if (tareEl && document.activeElement !== tareEl) tareEl.value = Number(t.tareWeight).toFixed(2);
       syncScaleMaterialWeight();
@@ -1540,7 +1578,12 @@ async function signOutUser() {
       const wrap = el('storedTruckTaresList');
       if (!wrap) return;
       const q = String(state.truckTaresSearchQuery || '').trim().toLowerCase();
-      const rows = state.truckTares.filter((t) => !q || t.truck.toLowerCase().includes(q));
+      const rows = state.truckTares.filter((t) => {
+        if (!q) return true;
+        const truck = String(t.truck || '').toLowerCase();
+        const company = String(t.companyName || '').toLowerCase();
+        return truck.includes(q) || company.includes(q);
+      });
       if (!rows.length) {
         wrap.innerHTML = '<div class="empty-state">No stored truck tares yet. Add one above.</div>';
         return;
@@ -1550,7 +1593,10 @@ async function signOutUser() {
         const row = document.createElement('div');
         row.className = 'settings-account-row';
         row.innerHTML = `
-          <span class="name">${escapeHtml(t.truck)} <span style="color:var(--muted-2); font-weight:500;">(tare ${Number(t.tareWeight).toFixed(2)})</span></span>
+          <span class="name">
+            ${escapeHtml(t.truck)}
+            <span style="color:var(--muted-2); font-weight:500;">(${escapeHtml(t.companyName || 'No company')} · tare ${Number(t.tareWeight).toFixed(2)})</span>
+          </span>
           <div class="settings-account-actions">
             <button type="button" class="ghost-btn mini-remove" data-edit="${escapeHtml(t.id)}">Edit</button>
             <button type="button" class="ghost-btn mini-remove" data-del="${escapeHtml(t.id)}">Delete</button>
@@ -1572,6 +1618,7 @@ async function signOutUser() {
 
     function addStoredTruckTare() {
       const truck = (el('newTruckNumber')?.value || '').trim();
+      const companyName = (el('newTruckCompanyName')?.value || '').trim();
       const tareRaw = parseFloat(el('newTruckTareWeight')?.value || '');
       if (!truck || Number.isNaN(tareRaw)) {
         showToast('Enter truck number and tare weight.');
@@ -1581,15 +1628,17 @@ async function signOutUser() {
         showToast('That truck already exists. Use Edit instead.');
         return;
       }
-      state.truckTares.push({ id: `TR-${Date.now()}`, truck, tareWeight: tareRaw });
+      state.truckTares.push({ id: `TR-${Date.now()}`, truck, companyName, tareWeight: tareRaw });
       if (!persistTruckTares()) {
         showToast('Could not save stored truck tares.');
         return;
       }
       loadTruckTaresStorage();
       const tn = el('newTruckNumber');
+      const tc = el('newTruckCompanyName');
       const tw = el('newTruckTareWeight');
       if (tn) tn.value = '';
+      if (tc) tc.value = '';
       if (tw) tw.value = '';
       renderStoredTruckTaresList();
       renderScaleTruckDropdown();
@@ -1607,6 +1656,9 @@ async function signOutUser() {
         showToast('Truck number cannot be empty.');
         return;
       }
+      const nextCompany = window.prompt('Company name', String(row.companyName || ''));
+      if (nextCompany == null) return;
+      const companyName = nextCompany.trim();
       const nextTare = window.prompt('Tare weight', String(row.tareWeight));
       if (nextTare == null) return;
       const tare = parseFloat(nextTare);
@@ -1615,6 +1667,7 @@ async function signOutUser() {
         return;
       }
       row.truck = truck;
+      row.companyName = companyName;
       row.tareWeight = tare;
       persistTruckTares();
       loadTruckTaresStorage();
@@ -1646,7 +1699,6 @@ async function signOutUser() {
       el('scaleGrossWeight').value = '';
       el('scaleTotalMaterialWeight').value = '';
       el('scaleMaterial').value = '';
-      el('scaleOrderedTons').value = '';
       el('scaleJob').value = '';
       el('scaleLoads').value = '';
       const st = el('scaleStatus');
@@ -1662,7 +1714,6 @@ async function signOutUser() {
       const accountId = el('scaleAccountId')?.value?.trim() ?? '';
       const accRecord = accountId ? state.customerAccounts.find((x) => x.id === accountId) : null;
       const customer = (accRecord ? accRecord.name : (el('scaleAccountSearch')?.value ?? '')).trim();
-      const orderedTons = parseFloat(el('scaleOrderedTons').value);
       if (!truck || Number.isNaN(tareWeight) || Number.isNaN(grossWeight) || Number.isNaN(totalMaterialWeight)) {
         showToast('Enter truck number, tare weight, and gross weight.');
         return;
@@ -1675,8 +1726,8 @@ async function signOutUser() {
         showToast('Select a customer account from the list.');
         return;
       }
-      if (!customer || Number.isNaN(orderedTons)) {
-        showToast('Enter customer and tons ordered.');
+      if (!customer) {
+        showToast('Enter customer.');
         return;
       }
       let ticketNo = el('scaleTicket').value.trim();
@@ -1692,7 +1743,7 @@ async function signOutUser() {
         notes: el('scaleNotes').value.trim(),
         customer,
         job: el('scaleJob').value.trim() || '—',
-        tonsOrdered: orderedTons,
+        tonsOrdered: 0,
         loads: parseInt(el('scaleLoads').value, 10) || 0,
         status: el('scaleStatus').value
       };
@@ -2043,6 +2094,7 @@ async function signOutUser() {
           const href = a.getAttribute('href');
           if (!href || !href.startsWith('/') || href.startsWith('//')) return;
           e.preventDefault();
+          closeHeaderMenu();
           navigate(href);
         });
       }
@@ -2727,6 +2779,7 @@ async function signOutUser() {
         const tdd = el('scaleTruckDropdown');
         if (tdd) tdd.hidden = true;
       }
+      if (!e.target.closest?.('.header-menu')) closeHeaderMenu();
     });
 
     Object.assign(window, {
@@ -2737,6 +2790,8 @@ async function signOutUser() {
       openBuilder,
       openAdmin,
       toggleAuth,
+      toggleHeaderMenu,
+      closeHeaderMenu,
       deskGoToToday,
       setOrdersBoardDate,
       ordersGoToToday,
