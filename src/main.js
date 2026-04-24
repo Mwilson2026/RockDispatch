@@ -134,7 +134,8 @@ const baseTemplates = [
       salesOrders: [],
       customerAccounts: [],
       selectedCustomerAccountId: null,
-      selectedScaleCustomerAccountId: null
+      selectedScaleCustomerAccountId: null,
+      customerAccountsSearchQuery: ''
     };
 
     (function initOrdersBoardDefaults() {
@@ -823,6 +824,10 @@ async function signOutUser() {
       } catch (e) {
         state.customerAccounts = [];
       }
+      if (!state.customerAccounts.length) {
+        state.customerAccounts = [{ id: 'CA-COD', name: 'COD' }];
+        persistCustomerAccounts();
+      }
     }
 
     function persistCustomerAccounts() {
@@ -852,7 +857,7 @@ async function signOutUser() {
     function accountHintText() {
       return state.customerAccounts.length
         ? 'Search and select a customer account.'
-        : 'No accounts yet — add customer accounts in Settings.';
+        : 'No accounts yet — add customer accounts on Customer Accounts page.';
     }
 
     function clearAccountSelection() {
@@ -986,12 +991,6 @@ async function signOutUser() {
           ? `Header & home will show: Hi, ${show}`
           : 'Header & home will show: Hi — enter a greeting above and save.';
       }
-
-      const adminBlk = el('settingsAccountsAdminBlock');
-      const locked = el('settingsAccountsLocked');
-      if (adminBlk) adminBlk.hidden = false;
-      if (locked) locked.hidden = true;
-      renderCustomerAccountsList();
 
       const adminBadge = el('settingsProfileAdminBadge');
       if (adminBadge) adminBadge.hidden = true;
@@ -1133,12 +1132,14 @@ async function signOutUser() {
     function renderCustomerAccountsList() {
       const wrap = el('customerAccountsList');
       if (!wrap) return;
-      if (!state.customerAccounts.length) {
+      const q = String(state.customerAccountsSearchQuery || '').trim().toLowerCase();
+      const rows = state.customerAccounts.filter((a) => !q || a.name.toLowerCase().includes(q));
+      if (!rows.length) {
         wrap.innerHTML = '<div class="empty-state">No customer accounts yet. Add one above.</div>';
         return;
       }
       wrap.innerHTML = '';
-      state.customerAccounts.forEach((a) => {
+      rows.forEach((a) => {
         const row = document.createElement('div');
         row.className = 'settings-account-row';
         row.innerHTML = `
@@ -1154,7 +1155,7 @@ async function signOutUser() {
       });
     }
 
-    function addCustomerAccountFromSettings() {
+    function addCustomerAccount() {
       const inp = el('newAccountName');
       const name = inp?.value.trim() ?? '';
       if (!name) {
@@ -1217,7 +1218,6 @@ async function signOutUser() {
     function showSettingsSection(panel) {
       const prof = el('settingsPanelProfile');
       const app = el('settingsPanelAppearance');
-      const acc = el('settingsPanelAccounts');
       const navBtns = document.querySelectorAll('.settings-nav-btn');
       navBtns.forEach((b) => {
         const active = b.dataset.settingsPanel === panel;
@@ -1225,8 +1225,7 @@ async function signOutUser() {
       });
       if (prof) prof.hidden = panel !== 'profile';
       if (app) app.hidden = panel !== 'appearance';
-      if (acc) acc.hidden = panel !== 'accounts';
-      if (panel === 'accounts' || panel === 'profile') renderSettingsPage();
+      if (panel === 'profile') renderSettingsPage();
     }
 
     let settingsUiInitialized = false;
@@ -1446,6 +1445,14 @@ async function signOutUser() {
       const hint = el('soAccountHint');
       if (hint && !state.selectedCustomerAccountId) hint.textContent = accountHintText();
       renderAccountDropdown();
+    }
+
+    function renderCustomerAccountsPage() {
+      const search = el('customerAccountsSearchInput');
+      if (search && document.activeElement !== search) {
+        search.value = state.customerAccountsSearchQuery || '';
+      }
+      renderCustomerAccountsList();
     }
 
     function clearScaleForm() {
@@ -1703,6 +1710,7 @@ async function signOutUser() {
       if (raw === '/') return { page: 'home' };
       if (raw === '/loads' || raw === '/orders') return { page: 'orders' };
       if (raw === '/desk') return { page: 'desk' };
+      if (raw === '/customer-accounts') return { page: 'customer-accounts' };
       if (raw === '/settings') return { page: 'settings' };
       if (raw === '/builder') return { page: 'builder' };
       if (raw === '/admin') return { page: 'admin' };
@@ -1740,7 +1748,7 @@ async function signOutUser() {
       const normalized = pathname.replace(/\/$/, '') || '/';
       const known =
         normalized === '/' ||
-        ['/desk', '/loads', '/orders', '/settings', '/builder', '/admin'].includes(normalized) ||
+        ['/desk', '/loads', '/orders', '/customer-accounts', '/settings', '/builder', '/admin'].includes(normalized) ||
         normalized.startsWith('/load/');
       if (!known) {
         history.replaceState(null, '', '/');
@@ -1779,6 +1787,11 @@ async function signOutUser() {
         case 'orders':
           switchView('ordersView');
           updateNavActive(window.location.pathname);
+          break;
+        case 'customer-accounts':
+          renderCustomerAccountsPage();
+          switchView('customerAccountsView');
+          updateNavActive('/customer-accounts');
           break;
         case 'builder':
           renderBuilder();
@@ -2465,6 +2478,13 @@ async function signOutUser() {
       scaleAccountSearch.addEventListener('input', () => renderScaleAccountDropdown());
       scaleAccountSearch.addEventListener('focus', () => renderScaleAccountDropdown());
     }
+    const customerAccountsSearchInput = el('customerAccountsSearchInput');
+    if (customerAccountsSearchInput) {
+      customerAccountsSearchInput.addEventListener('input', (e) => {
+        state.customerAccountsSearchQuery = e.target.value;
+        renderCustomerAccountsList();
+      });
+    }
     document.addEventListener('click', (e) => {
       if (!e.target.closest?.('.account-combo')) {
         const dd = el('soAccountDropdown');
@@ -2507,7 +2527,7 @@ async function signOutUser() {
       signOutUser,
       setTheme,
       selectCustomerAccount,
-      addCustomerAccountFromSettings,
+      addCustomerAccount,
       saveGreetingName,
       changeProfilePassword
     });

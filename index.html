@@ -24,6 +24,7 @@
         <a href="/" data-route>Home</a>
         <a href="/orders" data-route>Orders</a>
         <a href="/desk" data-route>Scale</a>
+        <a href="/customer-accounts" data-route>Customer Accounts</a>
         <a href="/admin" data-route>Admin</a>
         <a href="/settings" data-route>Settings</a>
       </nav>
@@ -397,7 +398,6 @@
             <nav class="settings-nav" aria-label="Settings sections">
               <button type="button" class="settings-nav-btn active" data-settings-panel="profile">Profile</button>
               <button type="button" class="settings-nav-btn" data-settings-panel="appearance">Appearance</button>
-              <button type="button" class="settings-nav-btn" data-settings-panel="accounts">Customer accounts</button>
             </nav>
             <div class="settings-content">
               <section id="settingsPanelProfile" class="settings-panel">
@@ -476,23 +476,32 @@
                 </div>
               </section>
 
-              <section id="settingsPanelAccounts" class="settings-panel" hidden>
-                <div id="settingsAccountsAdminBlock">
-                  <h3>Customer accounts</h3>
-                  <p style="color: var(--muted); margin-bottom: 14px;">These names appear in the Orders and Scale forms. Add, edit, or delete as needed.</p>
-                  <div class="settings-add-account">
-                    <input id="newAccountName" placeholder="New customer account name" autocomplete="off" />
-                    <button type="button" class="primary-btn" onclick="addCustomerAccountFromSettings()">Add account</button>
-                  </div>
-                  <div id="customerAccountsList" class="settings-accounts-list"></div>
-                </div>
-                <div id="settingsAccountsLocked" hidden>
-                  <p style="color: var(--muted);">Customer accounts are editable from this section.</p>
-                </div>
-              </section>
             </div>
           </div>
         </div>
+      </section>
+
+      <section id="customerAccountsView" class="view">
+        <div class="section-top">
+          <div>
+            <div class="section-label">Customer accounts</div>
+            <h2>Manage customer accounts</h2>
+            <p style="color: var(--muted); margin-top: 10px; font-size: 14px; max-width: 680px;">Accounts saved here are used by both New orders and Scale tickets account search selectors.</p>
+          </div>
+          <button type="button" class="ghost-btn" onclick="navigate('/')">Back home</button>
+        </div>
+
+        <section class="panel box">
+          <div class="settings-add-account">
+            <input id="newAccountName" placeholder="New customer account name" autocomplete="off" />
+            <button type="button" class="primary-btn" onclick="addCustomerAccount()">Add account</button>
+          </div>
+          <div class="account-combo" style="max-width: 520px;">
+            <label class="section-label" for="customerAccountsSearchInput">Search accounts</label>
+            <input id="customerAccountsSearchInput" type="search" placeholder="Type to filter customer accounts..." autocomplete="off" />
+          </div>
+          <div id="customerAccountsList" class="settings-accounts-list" style="margin-top: 14px;"></div>
+        </section>
       </section>
 
       <section id="adminView" class="view">
